@@ -1,26 +1,146 @@
 @import "tailwindcss";
 
+@theme {
+  --color-primary: #237227;
+  --color-primary-dark: #1b5b1f;
+  --color-primary-light: #eaf3eb;
+  --color-primary-50: #f2f8f3;
+}
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --primary: #237227;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
 }
 
 body {
-  background: var(--background);
+  background-color: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: Arial, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
 }
+
+/* Comfortable subtle scrollbar */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Leaflet CSS */
+@import "leaflet/dist/leaflet.css";
+
+/* Leaflet Custom Concentric Radar Beacon Pulse (Wave Ring Only - No Solid Fill) */
+@keyframes svg-radar-wave {
+  0% {
+    r: 7px;
+    opacity: 0.95;
+    stroke-width: 2.5px;
+  }
+  50% {
+    opacity: 0.55;
+    stroke-width: 1.8px;
+  }
+  100% {
+    r: 25px;
+    opacity: 0;
+    stroke-width: 0.5px;
+  }
+}
+
+.svg-beacon-pulse-ring {
+  transform-box: fill-box;
+  transform-origin: center;
+  fill: none !important;
+  animation: svg-radar-wave 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+.svg-beacon-pulse-ring-delayed {
+  transform-box: fill-box;
+  transform-origin: center;
+  fill: none !important;
+  animation: svg-radar-wave 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+  animation-delay: 0.8s;
+}
+
+/* URGENT DOWNTIME ALERT WAVE ANIMATIONS (Stroke Only) */
+@keyframes urgent-red-shockwave {
+  0% {
+    r: 10px;
+    opacity: 1;
+    stroke-width: 3.5px;
+  }
+  50% {
+    opacity: 0.6;
+    stroke-width: 2px;
+  }
+  100% {
+    r: 34px;
+    opacity: 0;
+    stroke-width: 0.5px;
+  }
+}
+
+@keyframes urgent-red-flash {
+  0%, 100% {
+    fill: #ef4444;
+    stroke: #ffffff;
+    stroke-width: 2.5px;
+    filter: drop-shadow(0 0 6px rgba(239, 68, 68, 0.8));
+  }
+  50% {
+    fill: #b91c1c;
+    stroke: #fecaca;
+    stroke-width: 2px;
+    filter: drop-shadow(0 0 2px rgba(239, 68, 68, 0.3));
+  }
+}
+
+.svg-beacon-urgent-ring {
+  transform-box: fill-box;
+  transform-origin: center;
+  fill: none !important;
+  animation: urgent-red-shockwave 1.2s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+.svg-beacon-urgent-core {
+  animation: urgent-red-flash 0.8s ease-in-out infinite;
+}
+
+.leaflet-beacon-marker {
+  background: transparent !important;
+  border: none !important;
+}
+
+/* Custom Leaflet Tooltip & Popup clean styling */
+.leaflet-popup-content-wrapper {
+  border-radius: 14px !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15) !important;
+  border: 1px solid #e2e8f0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+.leaflet-popup-content {
+  margin: 0 !important;
+  line-height: normal !important;
+}
+.leaflet-container {
+  font-family: inherit !important;
+  background-color: #f1f5f9 !important;
+}
+

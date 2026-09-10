@@ -1,0 +1,52 @@
+import { SystemSettings } from '@/types/settings';
+
+export const initialSystemSettings: SystemSettings = {
+  telegram: {
+    botToken: '8738860219:AAGHT3ZdCFMzakSVSZCsvMN03P1TMpy2_Jg',
+    channelId: '7227734738',
+    autoDispatchOnDowntime: true,
+    notifyOnRecovery: true,
+    alertCooldownMinutes: 15,
+    testStatus: 'idle',
+  },
+  monitoring: {
+    ruijieApiEndpoint: 'https://cloud-as.ruijienetworks.com',
+    ruijieAppId: 'open1312043d9a82',
+    ruijieAppSecret: '8ARNMqo7uXgU5NTweEmWn46Hvewjcp1PtqfXTKDZTj29',
+    googleMapsApiKey: 'AIzaSyAq58TD9PputxnK8ZO9jRUX8KW7bTuPTPQ',
+    syncIntervalSeconds: 30,
+    pingThreshold: 3,
+    autoRefreshDashboard: true,
+    enableGeoTracking: true,
+  },
+  displayAndSound: {
+    tvModeEnabled: false,
+    audibleAlarmOnDowntime: true,
+    soundVolume: 80,
+    compactTableRows: false,
+  },
+  general: {
+    systemName: 'DICT Region 10 Ruijie Cloud Network Monitoring System',
+    organization: 'Department of Information and Communications Technology',
+    contactEmail: 'noc.region10@dict.gov.ph',
+    nmsVersion: 'v2.4.0-PROD',
+    lastBackupDate: '2026-09-08 09:30:00',
+    language: 'English',
+    timezone: 'Asia/Manila',
+    sirenAlertEnabled: true,
+  },
+  account: {
+    fullName: 'Engr. Engel Montero',
+    email: 'emontero@dict.gov.ph',
+    role: 'Super Administrator / Security Officer',
+    department: 'DICT Region 10 - Technical Operations Division',
+    telegramUsername: 'emontero',
+    phone: '+63 917 000 7777',
+    password: '',
+    twoFactorEnabled: true,
+    twoFactorMethod: 'telegram',
+    sessionTimeoutMinutes: 30,
+    lastLoginTime: 'Today at 08:30 AM (PHT)',
+    lastLoginIp: '175.176.88.24 (Cagayan de Oro City, PH)',
+  },
+};
