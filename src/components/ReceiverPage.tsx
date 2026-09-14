@@ -229,7 +229,7 @@ export const ReceiverPage: React.FC<ReceiverPageProps> = ({
     } else {
       setToastMsg(`Assigned ${formPersonName.trim()} (Account ID: ${cleanChatId}) to ${formArea.trim()}.`);
     }
-    setTimeout(() => setToastMsg(null), 5000);
+    setTimeout(() => setToastMsg(null), 10000);
 
     setIsAddingNew(false);
     setEditingId(null);

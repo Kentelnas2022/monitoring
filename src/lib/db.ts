@@ -524,6 +524,35 @@ export const db = {
             LEFT JOIN downtime_events e ON e.site_id = s.id AND e.status = 'Active'
             ORDER BY s.status = 'Downtime' DESC, s.name ASC
           `);
+          const [deviceRows]: any = await pool.query(`
+            SELECT id, site_id, device_name, model, serial_number, mac_address, ip_address, device_type, status
+            FROM devices
+            ORDER BY device_type = 'Gateway' DESC, id ASC
+          `).catch(() => [[]]);
+
+          const devicesBySiteId = new Map<string, any[]>();
+          if (Array.isArray(deviceRows)) {
+            for (const d of deviceRows) {
+              const arr = devicesBySiteId.get(d.site_id) || [];
+              let model = d.model;
+              if (!model || model === 'EAP') model = 'RG-RAP2200(E)';
+              else if (model === 'EGW') model = 'RG-EG105G-P';
+              else if (model === 'ESW') model = 'RG-ES205GC-P';
+
+              arr.push({
+                id: d.id,
+                name: d.device_name,
+                model,
+                serialNumber: d.serial_number,
+                macAddress: d.mac_address,
+                ipAddress: d.ip_address,
+                deviceType: d.device_type,
+                status: d.status,
+              });
+              devicesBySiteId.set(d.site_id, arr);
+            }
+          }
+
           return rows.map((r: any) => {
             const durationMins = r.duration_seconds ? Math.round(r.duration_seconds / 60) : 0;
             const durationLabel = durationMins >= 60 
@@ -556,6 +585,7 @@ export const db = {
               gatewayOffline: r.gateway_offline !== null && r.gateway_offline !== undefined ? Number(r.gateway_offline) : 0,
               switchCount: r.switch_count !== null && r.switch_count !== undefined ? Number(r.switch_count) : 0,
               switchOffline: r.switch_offline !== null && r.switch_offline !== undefined ? Number(r.switch_offline) : 0,
+              devices: devicesBySiteId.get(r.id) || [],
               assignedHandler: {
                 name: r.handler_name || 'Unassigned',
                 phone: r.handler_phone || '',

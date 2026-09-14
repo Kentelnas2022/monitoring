@@ -297,6 +297,11 @@ export default function DashboardClient({
     setAlertingSite(null);
   }, []);
 
+  // Close telegram / general toast cleanly
+  const handleCloseToast = React.useCallback(() => {
+    setToastMessage(null);
+  }, []);
+
   // Synchronize incoming sites telemetry and detect real-time downtime events
   const applyUpdatedSites = React.useCallback(
     (incomingSites: SiteInfrastructure[], incomingStats?: any) => {
@@ -1133,6 +1138,7 @@ export default function DashboardClient({
       {/* TOP CENTER DOWNTIME ALERT TOAST */}
       <DowntimeAlertToast
         site={alertingSite}
+        autoDismissSec={10}
         onClose={handleCloseAlertToast}
         onStopAudio={() => {
           if (beepCancelRef.current) beepCancelRef.current();
@@ -1149,7 +1155,7 @@ export default function DashboardClient({
       />
 
       {/* Global Interactive Toast */}
-      <Toast message={toastMessage} onClose={() => setToastMessage(null)} />
+      <Toast message={toastMessage} onClose={handleCloseToast} durationMs={3000} />
     </div>
   );
 }

@@ -258,20 +258,6 @@ export const ProjectTable: React.FC<ProjectTableProps> = ({
                   <span className="hidden sm:inline">{isTestOutage ? 'Restore Online' : 'Test Site Down'}</span>
                 </button>
               )}
-
-              {/* Live API Telemetry Sync Button */}
-              {onRefresh && (
-                <button
-                  type="button"
-                  onClick={onRefresh}
-                  disabled={isRefreshing}
-                  title={lastSyncedAt ? `Auto-syncing in realtime (Last synced: ${lastSyncedAt}). Click to force manual sync.` : 'Auto-syncing in realtime. Click to sync now.'}
-                  className="h-9 px-2.5 sm:px-3 rounded-xl border border-zinc-200 bg-white hover:bg-zinc-50 flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-zinc-700 shadow-2xs hover:border-[#237227] hover:text-[#237227] transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed shrink-0"
-                >
-                  <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin text-[#237227]' : 'text-zinc-500'}`} />
-                  <span className="hidden sm:inline">{isRefreshing ? 'Syncing...' : 'Sync'}</span>
-                </button>
-              )}
             </div>
           </div>
         </div>
@@ -286,18 +272,18 @@ export const ProjectTable: React.FC<ProjectTableProps> = ({
                 <col className="w-[23%]" />
                 <col className="w-[34%]" />
               </colgroup>
-              <thead className="border-b border-zinc-200 bg-zinc-50 text-xs sm:text-sm uppercase tracking-wider text-zinc-500 font-bold sticky top-0 z-10 shadow-2xs">
+              <thead className="border-b border-zinc-200 bg-zinc-50 text-[10px] uppercase tracking-wider text-zinc-500 font-bold sticky top-0 z-10 shadow-2xs">
                 <tr>
-                  <th scope="col" className="py-3 pl-3.5 sm:pl-4 pr-2 font-bold whitespace-nowrap">
+                  <th scope="col" className="py-2 pl-3 pr-2 font-bold whitespace-nowrap">
                     Status
                   </th>
-                  <th scope="col" className="px-3 sm:px-3.5 py-3 font-bold">
+                  <th scope="col" className="px-2.5 py-2 font-bold">
                     Project Name
                   </th>
-                  <th scope="col" className="px-3 sm:px-3.5 py-3 font-bold">
+                  <th scope="col" className="px-2.5 py-2 font-bold">
                     Location
                   </th>
-                  <th scope="col" className="px-3 sm:px-3.5 py-3 font-bold text-left">
+                  <th scope="col" className="px-2.5 py-2 font-bold text-left">
                     IP / Device Health
                   </th>
                 </tr>
@@ -346,61 +332,61 @@ export const ProjectTable: React.FC<ProjectTableProps> = ({
                         }`}
                       >
                         {/* 1. STATUS: Snug, clean badge with zero wasted space */}
-                        <td className="py-3 sm:py-3.5 pl-3.5 sm:pl-4 pr-2 whitespace-nowrap align-middle">
+                        <td className="py-1.5 pl-3 pr-2 whitespace-nowrap align-middle">
                           {isAllOffline && (
-                            <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-100/90 px-2.5 py-1 text-xs font-bold text-rose-700 shadow-2xs">
-                              <span className="relative flex h-2 w-2">
+                            <span className="inline-flex items-center gap-1 rounded-full bg-rose-100/90 px-2 py-0.5 text-[10px] font-bold text-rose-700 shadow-2xs">
+                              <span className="relative flex h-1.5 w-1.5">
                                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-                                <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
+                                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-rose-500"></span>
                               </span>
                               <span>All Offline</span>
                             </span>
                           )}
                           {isPartialOffline && (
-                            <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100/90 px-2.5 py-1 text-xs font-bold text-amber-800 shadow-2xs">
-                              <span className="relative flex h-2 w-2">
-                                <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                            <span className="inline-flex items-center gap-1 rounded-full bg-amber-100/90 px-2 py-0.5 text-[10px] font-bold text-amber-800 shadow-2xs">
+                              <span className="relative flex h-1.5 w-1.5">
+                                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-500"></span>
                               </span>
                               <span>Offline</span>
                             </span>
                           )}
                           {isOnline && (
-                            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-[#237227] border border-emerald-200/50 shadow-2xs">
-                              <CheckCircle2 className="h-3.5 w-3.5" />
+                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-[#237227] border border-emerald-200/50 shadow-2xs">
+                              <CheckCircle2 className="h-3 w-3" />
                               <span>Online</span>
                             </span>
                           )}
                         </td>
 
-                        {/* 2. PROJECT NAME: Bigger font with expanded width to avoid truncation */}
-                        <td className="px-3 sm:px-3.5 py-3 sm:py-3.5 overflow-hidden align-middle">
+                        {/* 2. PROJECT NAME */}
+                        <td className="px-2.5 py-1.5 overflow-hidden align-middle">
                           <div className="flex flex-col min-w-0">
                             <span className={`font-bold text-zinc-900 group-hover:text-[#237227] transition-colors duration-75 leading-snug truncate ${
-                              isTvMode ? 'text-lg' : 'text-sm sm:text-[15px]'
+                              isTvMode ? 'text-lg' : 'text-xs sm:text-sm'
                             }`} title={site.name}>
                               {site.name}
                             </span>
-                            <span className="text-xs font-mono font-medium text-zinc-400 mt-0.5">
+                            <span className="text-[10px] font-mono font-medium text-zinc-400">
                               {site.code}
                             </span>
                           </div>
                         </td>
 
                         {/* 3. LOCATION */}
-                        <td className="px-3 sm:px-3.5 py-3 sm:py-3.5 overflow-hidden align-middle">
-                          <div className="flex items-center gap-1.5 text-zinc-700 min-w-0">
-                            <MapPin className="h-4 w-4 text-[#237227] shrink-0" />
+                        <td className="px-2.5 py-1.5 overflow-hidden align-middle">
+                          <div className="flex items-center gap-1 text-zinc-700 min-w-0">
+                            <MapPin className="h-3.5 w-3.5 text-[#237227] shrink-0" />
                             <div className="flex flex-col min-w-0">
                               <span 
                                 className={`font-bold truncate text-zinc-900 leading-tight ${
-                                  isTvMode ? 'text-base' : 'text-xs sm:text-sm'
+                                  isTvMode ? 'text-base' : 'text-xs'
                                 }`} 
                                 title={`${site.landmark ? site.landmark + ' • ' : ''}${site.municipality || site.province}, ${site.province}`}
                               >
                                 {site.municipality || site.province}
                               </span>
                               <span 
-                                className="text-[11px] font-medium text-zinc-500 truncate mt-0.5" 
+                                className="text-[10px] font-medium text-zinc-500 truncate" 
                                 title={site.landmark ? `${site.landmark} • ${site.province}` : site.province}
                               >
                                 {site.landmark ? `${site.landmark} • ` : ''}{site.province}
@@ -409,34 +395,34 @@ export const ProjectTable: React.FC<ProjectTableProps> = ({
                           </div>
                         </td>
 
-                        {/* 4. IP & OFFLINE HEALTH: Snug and bold with AP / Gateway breakdown */}
-                        <td className="px-3 sm:px-3.5 py-3 sm:py-3.5 whitespace-nowrap overflow-hidden align-middle text-left">
+                        {/* 4. IP & OFFLINE HEALTH */}
+                        <td className="px-2.5 py-1.5 whitespace-nowrap overflow-hidden align-middle text-left">
                           <div className="flex flex-col items-start min-w-0">
-                            <div className="flex items-center gap-1.5 font-mono text-zinc-800 font-bold text-xs sm:text-sm">
-                              <Globe className="h-4 w-4 text-zinc-400 shrink-0" />
-                              <span className={isTvMode ? 'text-base font-bold' : 'text-xs sm:text-sm'}>{site.lastKnownIp}</span>
+                            <div className="flex items-center gap-1 font-mono text-zinc-800 font-bold">
+                              <Globe className="h-3.5 w-3.5 text-zinc-400 shrink-0" />
+                              <span className={isTvMode ? 'text-base font-bold' : 'text-xs'}>{site.lastKnownIp}</span>
                             </div>
 
                             {/* Granular AP & Device Health status */}
                             {isAllOffline && (
                               <div className="flex items-center gap-1 mt-0.5 flex-wrap">
                                 {(site.apCount || 0) > 0 && (
-                                  <span className={`inline-flex items-center px-1.5 py-0.5 rounded font-bold bg-rose-100 text-rose-800 border border-rose-200/60 ${
-                                    isTvMode ? 'text-sm' : 'text-[11px]'
+                                  <span className={`inline-flex items-center px-1 py-0.5 rounded font-bold bg-rose-100 text-rose-800 border border-rose-200/60 ${
+                                    isTvMode ? 'text-sm' : 'text-[10px]'
                                   }`}>
                                     {site.apOffline || site.apCount}/{site.apCount} AP down
                                   </span>
                                 )}
                                 {(site.gatewayCount || 0) > 0 && (
-                                  <span className={`inline-flex items-center px-1.5 py-0.5 rounded font-bold bg-rose-100 text-rose-800 border border-rose-200/60 ${
-                                    isTvMode ? 'text-sm' : 'text-[11px]'
+                                  <span className={`inline-flex items-center px-1 py-0.5 rounded font-bold bg-rose-100 text-rose-800 border border-rose-200/60 ${
+                                    isTvMode ? 'text-sm' : 'text-[10px]'
                                   }`}>
                                     {site.gatewayOffline || site.gatewayCount}/{site.gatewayCount} GW down
                                   </span>
                                 )}
                                 {(site.apCount || 0) === 0 && (site.gatewayCount || 0) === 0 && (
                                   <span className={`font-semibold text-rose-600 truncate ${
-                                    isTvMode ? 'text-sm' : 'text-xs sm:text-[12px]'
+                                    isTvMode ? 'text-sm' : 'text-[10px]'
                                   }`}>
                                     {site.offlineCount}/{site.deviceCount} down
                                   </span>
@@ -446,26 +432,26 @@ export const ProjectTable: React.FC<ProjectTableProps> = ({
                             {isPartialOffline && (
                               <div className="flex items-center gap-1 mt-0.5 flex-wrap">
                                 {(site.apCount || 0) > 0 && (
-                                  <span className={`inline-flex items-center px-1.5 py-0.5 rounded font-bold ${
+                                  <span className={`inline-flex items-center px-1 py-0.5 rounded font-bold ${
                                     (site.apOffline || 0) > 0 
                                       ? 'bg-amber-100 text-amber-800 border border-amber-200/60' 
                                       : 'bg-emerald-50 text-emerald-700 border border-emerald-200/60'
-                                  } ${isTvMode ? 'text-sm' : 'text-[11px]'}`}>
+                                  } ${isTvMode ? 'text-sm' : 'text-[10px]'}`}>
                                     {(site.apOffline || 0) > 0 ? `${site.apOffline}/${site.apCount} AP down` : `${site.apCount} AP ok`}
                                   </span>
                                 )}
                                 {(site.gatewayCount || 0) > 0 && (
-                                  <span className={`inline-flex items-center px-1.5 py-0.5 rounded font-bold ${
+                                  <span className={`inline-flex items-center px-1 py-0.5 rounded font-bold ${
                                     (site.gatewayOffline || 0) > 0 
                                       ? 'bg-rose-100 text-rose-800 border border-rose-200/60' 
                                       : 'bg-emerald-50 text-emerald-700 border border-emerald-200/60'
-                                  } ${isTvMode ? 'text-sm' : 'text-[11px]'}`}>
+                                  } ${isTvMode ? 'text-sm' : 'text-[10px]'}`}>
                                     {(site.gatewayOffline || 0) > 0 ? `${site.gatewayOffline}/${site.gatewayCount} GW down` : `${site.gatewayCount} GW ok`}
                                   </span>
                                 )}
                                 {(site.apCount || 0) === 0 && (site.gatewayCount || 0) === 0 && (
                                   <span className={`font-semibold text-amber-700 truncate ${
-                                    isTvMode ? 'text-sm' : 'text-xs sm:text-[12px]'
+                                    isTvMode ? 'text-sm' : 'text-[10px]'
                                   }`}>
                                     {site.offlineCount}/{site.deviceCount} down
                                   </span>
@@ -475,12 +461,12 @@ export const ProjectTable: React.FC<ProjectTableProps> = ({
                             {isOnline && (
                               <div className="flex items-center gap-1 mt-0.5 flex-wrap">
                                 <span className={`font-medium text-zinc-500 truncate ${
-                                  isTvMode ? 'text-sm' : 'text-xs sm:text-[12px]'
+                                  isTvMode ? 'text-sm' : 'text-[10px]'
                                 }`}>
                                   {site.onlineCount}/{site.deviceCount} Online
                                 </span>
                                 {(site.apCount || 0) > 0 && (
-                                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/50">
+                                  <span className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/50">
                                     <Wifi className="h-2.5 w-2.5" />
                                     <span>{site.apCount} APs healthy</span>
                                   </span>

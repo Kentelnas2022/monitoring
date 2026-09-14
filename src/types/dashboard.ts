@@ -36,6 +36,18 @@ export interface SiteInfrastructure {
   gatewayOffline?: number;
   switchCount?: number;
   switchOffline?: number;
+  devices?: SiteDevice[];
+}
+
+export interface SiteDevice {
+  id: string;
+  name: string;
+  model: string;
+  serialNumber: string;
+  macAddress?: string;
+  ipAddress?: string;
+  deviceType: 'AccessPoint' | 'Gateway' | 'Switch' | string;
+  status: 'Online' | 'Offline' | string;
 }
 
 export interface DowntimeEvent {

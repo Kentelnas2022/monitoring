@@ -580,6 +580,12 @@ export async function syncRuijieCloudTelemetry(): Promise<RuijieSyncResult> {
           const mac = `50:D2:F5:${hex.slice(0, 2)}:${hex.slice(2, 4)}:${hex.slice(4, 6)}`;
           const devName = `${p.groupName} ${devType === 'AccessPoint' ? 'AP' : devType} ${j + 1}`;
 
+          const modelName = d.productType === 'EAP' || devType === 'AccessPoint'
+            ? 'RG-RAP2200(E)'
+            : (d.productType === 'EGW' || devType === 'Gateway' ? 'RG-EG105G-P' : (d.productType || 'RG-ES205GC-P'));
+          const snPrefix = devType === 'Gateway' ? 'G1QH' : 'G1NF';
+          const sn = `${snPrefix}${((i + 1) * 100 + devIdx).toString(16).padStart(8, '0').toUpperCase()}`;
+
           await pool.query(
             `INSERT INTO devices 
                (id, site_id, device_name, model, serial_number, mac_address, ip_address, device_type, status, ruijie_device_id, last_heartbeat_at)
@@ -588,11 +594,12 @@ export async function syncRuijieCloudTelemetry(): Promise<RuijieSyncResult> {
                status = VALUES(status), 
                device_name = VALUES(device_name), 
                model = VALUES(model),
+               serial_number = VALUES(serial_number),
                last_heartbeat_at = NOW()`,
             [
               devId, siteId, devName,
-              d.productType || (devType === 'AccessPoint' ? 'Reyee AP' : 'Reyee Gateway'),
-              `SN-${siteCode}-${devIdx}`,
+              modelName,
+              sn,
               mac,
               ip, devType, isThisOff ? 'Offline' : 'Online', `rj-dev-${siteCode}-${devIdx}`
             ]

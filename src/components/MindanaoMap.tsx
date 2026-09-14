@@ -7,7 +7,9 @@ import {
   ZoomOut, 
   RotateCcw, 
   MapPin,
-  Radio
+  Radio,
+  Maximize2,
+  Minimize2
 } from 'lucide-react';
 import type * as LType from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -437,33 +439,107 @@ export const MindanaoMap: React.FC<MindanaoMapProps> = ({
     mapInstanceRef.current?.flyTo(MINDANAO_CENTER, DEFAULT_ZOOM, { duration: 1.0 });
   };
 
+  // ── Fullscreen State (persisted across reloads via localStorage) ──────────
+  // Initialized to false to ensure server and client HTML match during initial hydration
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+
+  // Restore persisted fullscreen state after initial mount (prevents SSR hydration error)
+  useEffect(() => {
+    try {
+      if (localStorage.getItem('mindanaoMapFullscreen') === 'true') {
+        setIsFullscreen(true);
+      }
+    } catch {}
+  }, []);
+
+  // Toggle handler — enter/exit both CSS overlay AND native browser fullscreen
+  const handleToggleFullscreen = useCallback(() => {
+    setIsFullscreen((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('mindanaoMapFullscreen', next ? 'true' : 'false');
+      } catch {}
+
+      if (next) {
+        document.documentElement.requestFullscreen?.().catch(() => {});
+      } else {
+        if (document.fullscreenElement) {
+          document.exitFullscreen?.().catch(() => {});
+        }
+      }
+      return next;
+    });
+  }, []);
+
+  // Listen for Esc key only — will NOT auto-exit on reload or external fullscreenchange
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isFullscreen) {
+        handleToggleFullscreen();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isFullscreen, handleToggleFullscreen]);
+
+  // Recalculate Leaflet tile dimensions when fullscreen is toggled or restored on mount
+  useEffect(() => {
+    const t1 = setTimeout(() => {
+      mapInstanceRef.current?.invalidateSize();
+    }, 60);
+    const t2 = setTimeout(() => {
+      mapInstanceRef.current?.invalidateSize();
+    }, 220);
+    const t3 = setTimeout(() => {
+      mapInstanceRef.current?.invalidateSize();
+    }, 500);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+    };
+  }, [isFullscreen]);
+
   return (
-    <div className="relative flex flex-col h-full overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-xs">
+    <div 
+      className={`flex flex-col h-full overflow-hidden bg-white transition-all duration-200 ${
+        isFullscreen 
+          ? 'fixed inset-0 z-[9990] w-full h-full rounded-none shadow-2xl' 
+          : 'relative rounded-2xl border border-zinc-200 shadow-xs'
+      }`}
+    >
       {/* Top Map Header Toolbar */}
-      <div className="flex items-center justify-between border-b border-zinc-200 px-3 sm:px-4 py-2.5 bg-white z-10">
-        <div className="flex items-center gap-2 min-w-0">
+      <div className="flex items-center justify-between border-b border-zinc-200 px-3 sm:px-5 py-2.5 bg-white z-10 gap-2">
+        <div className="flex items-center gap-2 min-w-0 flex-1">
           <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#237227]/10 text-[#237227] shrink-0">
             <Radio className="h-4 w-4 animate-pulse text-[#237227]" />
           </div>
-          <div className="truncate">
-            <h3 className="text-xs sm:text-sm font-bold text-zinc-900 leading-tight truncate">
-              Mindanao Google Topology Map
-            </h3>
-            <p className="text-[11px] text-zinc-500 font-normal truncate">
+          <div className="truncate min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 className="text-xs sm:text-sm font-bold text-zinc-900 leading-tight truncate">
+                Mindanao Google Topology Map
+              </h3>
+              {isFullscreen && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#237227]/10 text-[#237227] border border-[#237227]/20 whitespace-nowrap">
+                  Full Screen Active
+                </span>
+              )}
+            </div>
+            <p className="text-[11px] text-zinc-500 font-normal truncate hidden md:block">
               Region X • BARMM • Real-time Outage Tracking (8.25° N, 124.6° E)
             </p>
           </div>
         </div>
 
         {/* Action Controls */}
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
 
           {/* Map / Satellite Toggle */}
-          <div className="flex items-center bg-zinc-100 border border-zinc-200/80 p-0.5 rounded-xl text-[11px] font-semibold">
+          <div className="flex items-center bg-zinc-100 border border-zinc-200/80 p-0.5 rounded-xl text-[11px] font-semibold shrink-0">
             <button
               type="button"
               onClick={() => handleToggleMapType('roadmap')}
-              className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+              className={`px-2 sm:px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
                 activeMapType === 'roadmap'
                   ? 'bg-[#237227] text-white font-bold shadow-2xs'
                   : 'text-zinc-600 hover:text-zinc-900'
@@ -474,7 +550,7 @@ export const MindanaoMap: React.FC<MindanaoMapProps> = ({
             <button
               type="button"
               onClick={() => handleToggleMapType('satellite')}
-              className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+              className={`px-2 sm:px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
                 activeMapType === 'satellite'
                   ? 'bg-[#237227] text-white font-bold shadow-2xs'
                   : 'text-zinc-600 hover:text-zinc-900'
@@ -485,7 +561,7 @@ export const MindanaoMap: React.FC<MindanaoMapProps> = ({
           </div>
 
           {/* Zoom & Reset Toolbar */}
-          <div className="flex items-center gap-0.5 bg-white border border-zinc-200 rounded-xl p-0.5 shadow-2xs">
+          <div className="flex items-center gap-0.5 bg-white border border-zinc-200 rounded-xl p-0.5 shadow-2xs shrink-0">
             <button 
               type="button" 
               onClick={handleZoomIn} 
@@ -511,6 +587,31 @@ export const MindanaoMap: React.FC<MindanaoMapProps> = ({
               <RotateCcw className="h-3.5 w-3.5" />
             </button>
           </div>
+
+          {/* Proper Fullscreen / Exit Fullscreen Button */}
+          <button 
+            type="button" 
+            onClick={handleToggleFullscreen} 
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 shadow-2xs ${
+              isFullscreen 
+                ? 'bg-[#237227] text-white border-[#237227] hover:bg-[#1b5e20]' 
+                : 'bg-white text-zinc-700 border-zinc-200 hover:border-[#237227]/50 hover:text-[#237227] hover:bg-zinc-50'
+            }`}
+            title={isFullscreen ? "Exit Full Screen" : "Adjust to Full Screen"}
+            aria-label={isFullscreen ? "Exit Full Screen" : "Adjust to Full Screen"}
+          >
+            {isFullscreen ? (
+              <>
+                <Minimize2 className="h-3.5 w-3.5 shrink-0" />
+                <span>Exit Fullscreen</span>
+              </>
+            ) : (
+              <>
+                <Maximize2 className="h-3.5 w-3.5 text-[#237227] shrink-0" />
+                <span>Full Screen</span>
+              </>
+            )}
+          </button>
         </div>
       </div>
 
@@ -521,6 +622,27 @@ export const MindanaoMap: React.FC<MindanaoMapProps> = ({
           ref={mapContainerRef} 
           className="w-full h-full absolute inset-0 z-0" 
         />
+
+        {/* Floating Google Maps-Style Fullscreen Toggle Button on Canvas */}
+        <div className="absolute top-3 right-3 z-[400]">
+          <button
+            type="button"
+            onClick={handleToggleFullscreen}
+            className={`flex items-center justify-center h-8 w-8 rounded-lg bg-white border border-zinc-200/90 shadow-md transition-all cursor-pointer ${
+              isFullscreen 
+                ? 'bg-[#237227] text-white border-[#237227] hover:bg-[#1b5e20]' 
+                : 'text-zinc-700 hover:text-[#237227] hover:bg-zinc-50'
+            }`}
+            title={isFullscreen ? 'Exit Full Screen (Esc)' : 'Toggle Full Screen'}
+            aria-label={isFullscreen ? 'Exit Full Screen' : 'Toggle Full Screen'}
+          >
+            {isFullscreen ? (
+              <Minimize2 className="h-4 w-4" />
+            ) : (
+              <Maximize2 className="h-4 w-4" />
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Legend Footer */}
@@ -548,8 +670,13 @@ export const MindanaoMap: React.FC<MindanaoMapProps> = ({
           </div>
         </div>
 
-        <div className="text-[11px] font-mono text-zinc-400">
-          Showing {counts.total} mapped sites across Mindanao
+        <div className="flex items-center gap-3 text-[11px] font-mono text-zinc-400">
+          {isFullscreen && (
+            <span className="text-zinc-500 font-sans hidden md:inline">
+              Press <kbd className="px-1.5 py-0.5 rounded bg-zinc-100 border border-zinc-300 text-zinc-700 font-mono text-[10px]">Esc</kbd> to exit
+            </span>
+          )}
+          <span>Showing {counts.total} mapped sites across Mindanao</span>
         </div>
       </div>
     </div>

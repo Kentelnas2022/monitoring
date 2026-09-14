@@ -24,7 +24,7 @@ export const DowntimeAlertToast: React.FC<DowntimeAlertToastProps> = ({
   onLocateOnMap,
   onOpenDispatch,
   onStopAudio,
-  autoDismissSec = 5,
+  autoDismissSec = 10,
 }) => {
   const [secondsRemaining, setSecondsRemaining] = useState<number>(autoDismissSec);
   const [isPaused, setIsPaused] = useState<boolean>(false);
