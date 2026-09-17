@@ -18,6 +18,7 @@ import {
   MapPin,
   Calendar,
   CheckCheck,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
@@ -100,20 +101,27 @@ export const ActivityLogsPage: React.FC<ActivityLogsPageProps> = ({
   const startItem = filteredLogs.length === 0 ? 0 : (currentPage - 1) * rowsPerPage + 1;
   const endItem = Math.min(currentPage * rowsPerPage, filteredLogs.length);
 
-  // Generate pagination page numbers window
+  // Generate pagination page numbers window (never long, truncated with ellipsis when totalPages > 5)
   const pageNumbers = useMemo(() => {
-    const pages: number[] = [];
-    const maxVisible = 5;
-    let start = Math.max(1, currentPage - 2);
-    let end = Math.min(totalPages, start + maxVisible - 1);
+    if (totalPages <= 5) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    }
+    const pages: (number | string)[] = [1];
+    let start = Math.max(2, currentPage - 1);
+    let end = Math.min(totalPages - 1, currentPage + 1);
 
-    if (end - start < maxVisible - 1) {
-      start = Math.max(1, end - maxVisible + 1);
+    if (currentPage <= 3) {
+      start = 2;
+      end = Math.min(totalPages - 1, 4);
+    } else if (currentPage >= totalPages - 2) {
+      start = Math.max(2, totalPages - 3);
+      end = totalPages - 1;
     }
 
-    for (let i = start; i <= end; i++) {
-      pages.push(i);
-    }
+    if (start > 2) pages.push('...');
+    for (let i = start; i <= end; i++) pages.push(i);
+    if (end < totalPages - 1) pages.push('...');
+    pages.push(totalPages);
     return pages;
   }, [currentPage, totalPages]);
 
@@ -122,7 +130,7 @@ export const ActivityLogsPage: React.FC<ActivityLogsPageProps> = ({
       case 'telegram':
         return (
           <span className="inline-flex items-center gap-1.5 rounded-full bg-sky-50 px-2.5 py-1 text-xs font-bold text-[#0088cc] border border-sky-200/80">
-            <Send className="h-3 w-3" />
+            <Send className="h-3 w-3 text-[#0088cc]" />
             <span>Telegram Sent</span>
           </span>
         );
@@ -135,15 +143,15 @@ export const ActivityLogsPage: React.FC<ActivityLogsPageProps> = ({
         );
       case 'assignment':
         return (
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-[#eaf3eb] px-2.5 py-1 text-xs font-bold text-[#237227] border border-emerald-200/80">
-            <UserCheck className="h-3 w-3" />
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-[#237227]/10 px-2.5 py-1 text-xs font-bold text-[#237227] border border-[#237227]/20">
+            <UserCheck className="h-3 w-3 text-[#237227]" />
             <span>Area Assigned</span>
           </span>
         );
       case 'recovery':
         return (
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700 border border-emerald-200">
-            <CheckCircle2 className="h-3 w-3" />
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-[#237227]/10 px-2.5 py-1 text-xs font-bold text-[#237227] border border-[#237227]/20">
+            <CheckCircle2 className="h-3 w-3 text-[#237227]" />
             <span>Restored</span>
           </span>
         );
@@ -159,23 +167,20 @@ export const ActivityLogsPage: React.FC<ActivityLogsPageProps> = ({
 
   return (
     <div 
-      className="flex-1 min-h-0 w-full flex flex-col gap-3.5 overflow-y-auto px-4 sm:px-6 py-4"
+      className="flex-1 min-h-0 w-full flex flex-col gap-4 overflow-y-auto px-4 sm:px-6 py-4"
       style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}
     >
-      {/* 1. TOP HEADER & METRIC CARDS */}
-      <div className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-5 shadow-2xs shrink-0 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* 1. TOP HEADER SECTION */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-5 shadow-2xs shrink-0">
         <div>
           <div className="flex items-center gap-2">
             <span className="h-2.5 w-2.5 rounded-full bg-[#237227]" />
             <h2 className="text-lg font-bold text-slate-900 tracking-tight">
               Activity Logs
             </h2>
-            <span className="text-[11px] font-bold text-[#237227] bg-[#eaf3eb] px-2.5 py-0.5 rounded-full border border-emerald-200/60">
-              Real-Time Audit Trail
-            </span>
           </div>
-          <p className="text-xs sm:text-sm text-slate-500 mt-1 max-w-2xl leading-relaxed">
-            Chronological audit of all system activity updates, personnel assignments, and automated Telegram downtime dispatch messages.
+          <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
+            Chronological audit trail of system activities, automated Telegram downtime alerts, and personnel assignments.
           </p>
         </div>
 
@@ -185,7 +190,7 @@ export const ActivityLogsPage: React.FC<ActivityLogsPageProps> = ({
             <button
               type="button"
               onClick={onClearLogs}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-600 text-xs font-semibold cursor-pointer transition-colors"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-600 text-xs font-semibold cursor-pointer transition-colors shadow-2xs"
             >
               <Trash2 className="h-3.5 w-3.5 text-slate-400" />
               <span>Clear History</span>
@@ -194,203 +199,167 @@ export const ActivityLogsPage: React.FC<ActivityLogsPageProps> = ({
         </div>
       </div>
 
-      {/* 2. STATS OVERVIEW CARDS (Minimalist & Clean) */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 shrink-0">
-        <div className="bg-white border border-slate-200/80 rounded-2xl p-3.5 shadow-2xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Logs</span>
-            <div className="p-1.5 rounded-lg bg-slate-100 text-slate-700">
-              <Layers className="h-4 w-4" />
+      {/* 2. UNIFIED ACTIVITY LOGS TABLE CARD */}
+      <div className="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden flex flex-col">
+        {/* Table Top Header Bar (Title, Count on Left; Dropdown Sorting/Filter & Search on Right) */}
+        <div className="border-b border-slate-100 bg-white px-5 sm:px-6 py-3.5 shrink-0 flex flex-wrap items-center justify-between gap-3.5">
+          {/* Left: Title & Count */}
+          <div className="flex items-center gap-2">
+            <h3 className="text-base font-bold text-slate-800 tracking-tight">
+              All Logs
+            </h3>
+            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200/60">
+              {filteredLogs.length}
+            </span>
+          </div>
+
+          {/* Right: Search Input & Category Dropdown */}
+          <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
+            {/* Search Input */}
+            <div className="relative flex-1 sm:w-64">
+              <Search className="h-4 w-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setCurrentPage(1);
+                }}
+                placeholder="Search logs, site, person..."
+                className="w-full h-9 rounded-xl border border-slate-200 bg-slate-50/70 pl-9.5 pr-3.5 text-xs font-medium text-slate-800 placeholder-slate-400 hover:border-slate-300 focus:outline-none focus:border-[#237227] focus:bg-white transition-all shadow-2xs"
+                style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}
+              />
+            </div>
+
+            {/* Dropdown Sorting / Category Filter */}
+            <div className="relative shrink-0">
+              <select
+                value={activeCategory}
+                onChange={(e) => {
+                  setActiveCategory(e.target.value as LogFilterCategory);
+                  setCurrentPage(1);
+                }}
+                className="h-9 rounded-xl border border-slate-200 bg-slate-50/80 px-3 pr-8 text-xs font-bold text-slate-700 hover:border-slate-300 focus:outline-none focus:border-[#237227] focus:bg-white cursor-pointer shadow-2xs transition-all appearance-none"
+                style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}
+              >
+                <option value="all">All Activities ({stats.total})</option>
+                <option value="telegram">Telegram Dispatches ({stats.telegram})</option>
+                <option value="outage">Downtime Alarms ({stats.outages})</option>
+                <option value="assignment">Area Assignments ({stats.assignments})</option>
+                <option value="recovery">Recoveries ({stats.recovery})</option>
+                <option value="system">System & Sync ({stats.system})</option>
+              </select>
+              <ChevronDown className="h-3.5 w-3.5 text-slate-500 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>
           </div>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-2xl font-black text-slate-900">{stats.total}</span>
-            <span className="text-xs text-slate-400">Events Recorded</span>
-          </div>
         </div>
 
-        <div className="bg-white border border-slate-200/80 rounded-2xl p-3.5 shadow-2xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Telegram Sent</span>
-            <div className="p-1.5 rounded-lg bg-sky-50 text-[#0088cc]">
-              <Send className="h-4 w-4" />
-            </div>
-          </div>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-2xl font-black text-[#0088cc]">{stats.telegram}</span>
-            <span className="text-xs text-slate-400">Downtime Dispatches</span>
-          </div>
-        </div>
-
-        <div className="bg-white border border-slate-200/80 rounded-2xl p-3.5 shadow-2xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Area Assigned</span>
-            <div className="p-1.5 rounded-lg bg-[#eaf3eb] text-[#237227]">
-              <UserCheck className="h-4 w-4" />
-            </div>
-          </div>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-2xl font-black text-[#237227]">{stats.assignments}</span>
-            <span className="text-xs text-slate-400">Staff Updated</span>
-          </div>
-        </div>
-
-        <div className="bg-white border border-slate-200/80 rounded-2xl p-3.5 shadow-2xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Site Alarms</span>
-            <div className="p-1.5 rounded-lg bg-slate-100 text-slate-700">
-              <AlertTriangle className="h-4 w-4 text-slate-600" />
-            </div>
-          </div>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-2xl font-black text-slate-800">{stats.outages}</span>
-            <span className="text-xs text-slate-400">Downtimes Detected</span>
-          </div>
-        </div>
-      </div>
-
-      {/* 3. FILTER TABS & SEARCH CONTROLS */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white border border-slate-200/80 rounded-2xl p-3 shadow-2xs shrink-0">
-        {/* Category Tabs */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
-          {(
-            [
-              { id: 'all', label: 'All Activities', count: stats.total },
-              { id: 'telegram', label: 'Telegram Dispatches', count: stats.telegram },
-              { id: 'outage', label: 'Downtime Alarms', count: stats.outages },
-              { id: 'assignment', label: 'Area Assignments', count: stats.assignments },
-              { id: 'recovery', label: 'Recoveries', count: stats.recovery },
-              { id: 'system', label: 'System & Sync', count: stats.system },
-            ] as const
-          ).map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => {
-                setActiveCategory(tab.id);
-                setCurrentPage(1);
-              }}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-                activeCategory === tab.id
-                  ? 'bg-[#237227] text-white shadow-2xs'
-                  : 'bg-slate-50 hover:bg-slate-100 text-slate-600'
-              }`}
-            >
-              <span>{tab.label}</span>
-              <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
-                activeCategory === tab.id ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-600'
-              }`}>
-                {tab.count}
-              </span>
-            </button>
-          ))}
-        </div>
-
-        {/* Search & Filter */}
-        <div className="relative w-full sm:w-80 shrink-0">
-          <Search className="h-4 w-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value);
-              setCurrentPage(1);
-            }}
-            placeholder="Search activity, site, person, @telegram..."
-            className="w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-9 pr-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-[#237227] focus:bg-white transition-colors"
-          />
-        </div>
-      </div>
-
-      {/* 4. MASTER ACTIVITY LOGS TABLE */}
-      <div className="bg-white border border-slate-200/80 rounded-2xl shadow-2xs overflow-hidden flex-1 flex flex-col">
         {filteredLogs.length === 0 ? (
-          <div className="p-12 text-center text-slate-400 text-xs sm:text-sm">
-            No activity logs match your filter criteria.
+          <div className="py-16 px-4 text-center flex flex-col items-center justify-center">
+            <div className="h-12 w-12 rounded-2xl bg-[#237227] flex items-center justify-center text-white mb-3 shadow-2xs">
+              <Activity className="h-6 w-6 text-white" />
+            </div>
+            <h3 className="text-sm font-semibold text-slate-800">No activity logs recorded</h3>
+            <p className="mt-1 text-xs text-slate-500 max-w-sm">
+              No matching activity events or audit logs found for your filter criteria.
+            </p>
           </div>
         ) : (
           <>
-            <div className="overflow-x-auto flex-1">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-slate-100 bg-slate-50/70 text-[11px] font-bold uppercase tracking-wider text-slate-500 sticky top-0 z-10 shadow-2xs">
-                  <th className="py-3.5 px-4 sm:px-6">Event Type</th>
-                  <th className="py-3.5 px-4 sm:px-6">Activity Details</th>
-                  <th className="py-3.5 px-4 sm:px-6">Site / Designated Area</th>
-                  <th className="py-3.5 px-4 sm:px-6">Assigned Responder / Telegram</th>
-                  <th className="py-3.5 px-4 sm:px-6 text-right">Timestamp</th>
-                </tr>
-              </thead>
+            <div className="overflow-x-auto">
+              <table className="w-full table-fixed text-left border-collapse" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
+                <colgroup>
+                  <col className="w-[26%]" />
+                  <col className="w-[20%]" />
+                  <col className="w-[20%]" />
+                  <col className="w-[18%]" />
+                  <col className="w-[16%]" />
+                </colgroup>
+                <thead>
+                  <tr className="border-b border-slate-200/80 bg-slate-50/80 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                    <th className="py-3.5 px-5 sm:px-6">ACTIVITY DETAILS</th>
+                    <th className="py-3.5 px-4 sm:px-6">SITE / DESIGNATED AREA</th>
+                    <th className="py-3.5 px-4 sm:px-6">ASSIGNED RESPONDER</th>
+                    <th className="py-3.5 px-4 sm:px-6">ACTIVITIES</th>
+                    <th className="py-3.5 px-5 sm:px-6 text-right">TIMESTAMP</th>
+                  </tr>
+                </thead>
                 <tbody className="divide-y divide-slate-100 text-xs sm:text-sm">
                   {paginatedLogs.map((log) => (
-                    <tr key={log.id} className="hover:bg-slate-50/60 transition-colors">
-                      {/* Event Type Badge */}
-                      <td className="py-3.5 px-4 sm:px-6 align-middle whitespace-nowrap">
-                        {getTypeBadge(log.type)}
-                      </td>
-
-                      {/* Activity Details */}
-                      <td className="py-3.5 px-4 sm:px-6 align-middle">
-                        <div className="min-w-[200px] max-w-md">
-                          <span className="font-bold text-slate-900 block leading-snug">
+                    <tr key={log.id} className="hover:bg-slate-50/70 transition-colors">
+                      {/* 1. Activity Details */}
+                      <td className="py-3.5 px-5 sm:px-6 align-middle">
+                        <div className="flex flex-col gap-0.5 pr-2">
+                          <span className="font-bold text-slate-800 text-sm leading-snug truncate" title={log.title}>
                             {log.title}
                           </span>
-                          <p className="text-xs text-slate-500 leading-relaxed mt-0.5">
+                          <p className="text-xs text-slate-500 leading-relaxed truncate" title={log.description}>
                             {log.description}
                           </p>
                         </div>
                       </td>
 
-                      {/* Site / Designated Area */}
+                      {/* 2. Site / Designated Area */}
                       <td className="py-3.5 px-4 sm:px-6 align-middle">
                         {log.siteName ? (
-                          <div>
-                            <div className="flex items-center gap-1.5 font-semibold text-slate-800">
-                              <MapPin className="h-3.5 w-3.5 text-[#237227] shrink-0" />
-                              <span className="truncate">{log.siteName}</span>
+                          <div className="flex flex-col gap-0.5">
+                            <div className="flex items-center gap-2">
+                              <div className="h-7 w-7 rounded-lg bg-[#237227] text-white flex items-center justify-center shrink-0 shadow-2xs">
+                                <MapPin className="h-4 w-4 text-white" />
+                              </div>
+                              <div className="flex flex-col min-w-0">
+                                <span className="font-bold text-slate-900 text-sm truncate">{log.siteName}</span>
+                                {log.siteCode && (
+                                  <span className="font-mono text-[11px] text-slate-400">
+                                    {log.siteCode}
+                                  </span>
+                                )}
+                              </div>
                             </div>
-                            {log.siteCode && (
-                              <span className="font-mono text-[11px] text-slate-400 block mt-0.5">
-                                {log.siteCode}
-                              </span>
-                            )}
                           </div>
                         ) : (
-                          <span className="text-slate-400 text-xs">—</span>
+                          <span className="text-slate-400 text-xs pl-2">—</span>
                         )}
                       </td>
 
-                      {/* Assigned Responder / Telegram */}
-                      <td className="py-3.5 px-4 sm:px-6 align-middle whitespace-nowrap">
+                      {/* 3. Assigned Responder / Telegram */}
+                      <td className="py-3.5 px-4 sm:px-6 align-middle">
                         {log.personName || log.telegramUsername ? (
-                          <div className="space-y-0.5">
+                          <div className="flex flex-col gap-1">
                             {log.personName && (
-                              <span className="font-bold text-slate-800 block">
+                              <span className="font-bold text-slate-800 text-sm truncate">
                                 {log.personName}
                               </span>
                             )}
                             {log.telegramUsername && (
-                              <a
-                                href={`https://t.me/${log.telegramUsername.replace(/^@/, '')}`}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="inline-flex items-center gap-1 text-xs font-mono font-semibold text-[#0088cc] hover:underline"
-                              >
-                                <Send className="h-3 w-3" />
-                                <span>@{log.telegramUsername.replace(/^@/, '')}</span>
-                                <ExternalLink className="h-2.5 w-2.5 opacity-60" />
-                              </a>
+                              <div className="inline-flex items-center gap-1.5 bg-slate-50/90 px-2.5 py-1 rounded-lg border border-slate-200/90 w-fit shadow-2xs">
+                                <Send className="h-3.5 w-3.5 text-[#0088cc] shrink-0" />
+                                <a
+                                  href={/^\d+$/.test(log.telegramUsername) ? "https://t.me/multifactors_bot" : `https://t.me/${log.telegramUsername.replace(/^@/, '')}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="font-mono text-xs font-bold text-slate-800 hover:text-[#0088cc] hover:underline truncate max-w-[130px]"
+                                >
+                                  {/^\d+$/.test(log.telegramUsername) ? `ID: ${log.telegramUsername}` : `@${log.telegramUsername.replace(/^@/, '')}`}
+                                </a>
+                                <ExternalLink className="h-2.5 w-2.5 text-slate-400 opacity-60" />
+                              </div>
                             )}
                           </div>
                         ) : (
-                          <span className="text-slate-400 text-xs">—</span>
+                          <span className="text-slate-400 text-xs pl-2">—</span>
                         )}
                       </td>
 
-                      {/* Timestamp */}
-                      <td className="py-3.5 px-4 sm:px-6 align-middle text-right whitespace-nowrap">
-                        <div className="flex items-center justify-end gap-1.5 text-xs text-slate-500 font-medium">
-                          <Clock className="h-3.5 w-3.5 text-slate-400" />
+                      {/* 4. Activities (Event Badge) */}
+                      <td className="py-3.5 px-4 sm:px-6 align-middle whitespace-nowrap">
+                        {getTypeBadge(log.type)}
+                      </td>
+
+                      {/* 5. Timestamp */}
+                      <td className="py-3.5 px-5 sm:px-6 align-middle text-right whitespace-nowrap">
+                        <div className="inline-flex items-center justify-end gap-1.5 text-xs text-slate-500 font-medium">
+                          <Clock className="h-3.5 w-3.5 text-slate-400 shrink-0" />
                           <span>{log.timestamp}</span>
                         </div>
                       </td>
@@ -401,7 +370,7 @@ export const ActivityLogsPage: React.FC<ActivityLogsPageProps> = ({
             </div>
 
             {/* PAGINATION CONTROLS FOOTER */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/70 px-4 sm:px-6 py-3 text-xs text-slate-600 shrink-0">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/70 px-5 sm:px-6 py-3.5 text-xs text-slate-600 shrink-0">
               {/* Left: Summary and Rows per Page */}
               <div className="flex flex-wrap items-center gap-3">
                 <span className="font-medium text-slate-600">
@@ -452,19 +421,25 @@ export const ActivityLogsPage: React.FC<ActivityLogsPageProps> = ({
 
                 {/* Page Number Buttons */}
                 <div className="flex items-center gap-1 px-1">
-                  {pageNumbers.map((pageNum) => (
-                    <button
-                      key={pageNum}
-                      type="button"
-                      onClick={() => setCurrentPage(pageNum)}
-                      className={`min-w-[30px] h-7 px-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                        currentPage === pageNum
-                          ? 'bg-[#237227] text-white shadow-2xs'
-                          : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-100'
-                      }`}
-                    >
-                      {pageNum}
-                    </button>
+                  {pageNumbers.map((pageNum, idx) => (
+                    typeof pageNum === 'number' ? (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => setCurrentPage(pageNum)}
+                        className={`min-w-[30px] h-7 px-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                          currentPage === pageNum
+                            ? 'bg-[#237227] text-white shadow-2xs'
+                            : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-100'
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    ) : (
+                      <span key={idx} className="px-1 text-xs text-slate-400 font-bold">
+                        ...
+                      </span>
+                    )
                   ))}
                 </div>
 

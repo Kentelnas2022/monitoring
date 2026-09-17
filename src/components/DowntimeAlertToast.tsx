@@ -1,12 +1,7 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import { 
-  WifiOff, 
-  X, 
-  MapPin, 
-  ChevronRight
-} from 'lucide-react';
+import React, { useEffect, useState, useRef } from 'react';
+import { X, AlertTriangle } from 'lucide-react';
 import { SiteInfrastructure } from '@/types/dashboard';
 
 interface DowntimeAlertToastProps {
@@ -21,140 +16,132 @@ interface DowntimeAlertToastProps {
 export const DowntimeAlertToast: React.FC<DowntimeAlertToastProps> = ({
   site,
   onClose,
-  onLocateOnMap,
-  onOpenDispatch,
   onStopAudio,
-  autoDismissSec = 10,
+  autoDismissSec = 8,
 }) => {
-  const [secondsRemaining, setSecondsRemaining] = useState<number>(autoDismissSec);
-  const [isPaused, setIsPaused] = useState<boolean>(false);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
+  const onStopAudioRef = useRef(onStopAudio);
+  onStopAudioRef.current = onStopAudio;
+
+  const activeSiteIdRef = useRef<string | null>(null);
+  const startTimeRef = useRef<number>(0);
+  const [remainingMs, setRemainingMs] = useState<number>(autoDismissSec * 1000);
+
+  // Buttery-smooth, continuous 60FPS progress bar & non-stopping 8-second countdown
   useEffect(() => {
-    if (!site) return;
-    setSecondsRemaining(autoDismissSec);
+    if (!site) {
+      activeSiteIdRef.current = null;
+      return;
+    }
 
+    const totalMs = autoDismissSec * 1000;
+
+    // Lock start timestamp when a new site outage triggers
+    if (activeSiteIdRef.current !== site.id) {
+      activeSiteIdRef.current = site.id;
+      startTimeRef.current = Date.now();
+      setRemainingMs(totalMs);
+    }
+
+    // High-frequency 30ms interval for fluid, continuous, uninterrupted progress bar animation
     const interval = setInterval(() => {
-      if (!isPaused) {
-        setSecondsRemaining((prev) => Math.max(0, prev - 1));
+      const elapsed = Date.now() - startTimeRef.current;
+      const leftMs = Math.max(0, totalMs - elapsed);
+
+      setRemainingMs(leftMs);
+
+      if (leftMs <= 0) {
+        clearInterval(interval);
+        if (onStopAudioRef.current) onStopAudioRef.current();
+        onCloseRef.current();
       }
-    }, 1000);
+    }, 30);
 
     return () => clearInterval(interval);
-  }, [site, isPaused, autoDismissSec]);
-
-  // Trigger onClose cleanly in useEffect when countdown reaches 0
-  useEffect(() => {
-    if (secondsRemaining === 0 && site) {
-      onClose();
-    }
-  }, [secondsRemaining, site, onClose]);
+  }, [site?.id, autoDismissSec]);
 
   if (!site) return null;
 
-  const isAllOffline = site.offlineCount === site.deviceCount && site.deviceCount > 0;
-  const progressPercent = Math.max(0, Math.min(100, (secondsRemaining / autoDismissSec) * 100));
+  const totalMs = autoDismissSec * 1000;
+  const progressPercent = Math.max(0, Math.min(100, (remainingMs / totalMs) * 100));
+  const secondsRemaining = Math.ceil(remainingMs / 1000);
 
   const handleDismiss = () => {
-    if (onStopAudio) onStopAudio();
+    if (onStopAudioRef.current) onStopAudioRef.current();
     onClose();
   };
 
-  const handleLocate = () => {
-    if (onLocateOnMap && site) {
-      onLocateOnMap(site);
-    }
-  };
+  const locationText = site.municipality || site.province;
 
   return (
     <aside 
-      className="fixed top-5 left-1/2 -translate-x-1/2 z-[10000] w-[92vw] max-w-lg animate-in fade-in slide-in-from-top-4 duration-300 pointer-events-auto select-none"
-      onMouseEnter={() => setIsPaused(true)}
-      onMouseLeave={() => setIsPaused(false)}
+      className="fixed top-5 left-1/2 -translate-x-1/2 z-[10000] w-[92vw] max-w-sm animate-in fade-in slide-in-from-top-4 duration-300 pointer-events-auto select-none"
       role="alert"
       aria-live="assertive"
+      style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}
     >
-      <div className="relative overflow-hidden rounded-2xl bg-white border border-zinc-200 shadow-xl shadow-black/5 ring-1 ring-black/5 transition-all">
-        {/* Main Content Area */}
-        <div className="p-4 flex items-start gap-3.5">
-          {/* Outage Badge Icon (Gray) */}
-          <div className="relative shrink-0 mt-0.5">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-zinc-100 text-zinc-600 border border-zinc-200 shadow-2xs">
-              <WifiOff className="h-5 w-5 text-zinc-600 stroke-[2.2]" />
-            </div>
+      <div className="relative overflow-hidden rounded-2xl bg-white border border-slate-200 shadow-xl shadow-slate-900/10 transition-all">
+        {/* Main Content Area - Solid Flat White Design (No Gradients) */}
+        <div className="p-4 flex items-center gap-3.5 bg-white">
+          {/* Caution Icon Container (Centered Vertically on the Left) */}
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-rose-50 text-rose-600 border border-rose-200/80 shrink-0 self-center shadow-2xs">
+            <AlertTriangle className="h-6 w-6 stroke-[2.2] text-rose-600 animate-pulse" />
           </div>
 
-          {/* Details */}
-          <div className="flex-1 min-w-0">
-            {/* Header: Outage Badge (ONLY RED) + Province (Gray) + Code (Gray) */}
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200/80 tracking-wide">
-                <span className="h-1.5 w-1.5 rounded-full bg-rose-500 animate-ping inline-block" />
-                Outage Detected
+          {/* Details Column: Header Badge -> Project Name -> Location */}
+          <div className="flex-1 min-w-0 flex flex-col gap-0.5 pr-1">
+            {/* Header Badge */}
+            <div className="flex items-center gap-1.5">
+              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200/80 uppercase tracking-wider">
+                <span className="h-1.5 w-1.5 rounded-full bg-rose-600 animate-ping inline-block" />
+                New site down detected
               </span>
-              <span className="text-xs text-zinc-500 font-medium truncate flex items-center gap-1">
-                <MapPin className="h-3 w-3 text-zinc-400" />
-                {site.province}
-              </span>
-              {site.code && (
-                <span className="text-[11px] font-mono px-1.5 py-0.5 rounded bg-zinc-100 text-zinc-500 border border-zinc-200/60">
-                  {site.code}
-                </span>
-              )}
             </div>
 
-            {/* Site Name (Gray/Dark Neutral) */}
+            {/* Project Name */}
             <h3 
-              className="mt-1.5 text-sm sm:text-base font-bold text-zinc-900 tracking-tight leading-snug truncate" 
+              className="mt-1 text-sm sm:text-base font-bold text-slate-900 tracking-tight leading-snug truncate" 
               title={site.name}
             >
               {site.name}
             </h3>
 
-            {/* Status Summary (Gray) & Locate Action (GREEN) */}
-            <div className="mt-1.5 flex items-center justify-between gap-2 flex-wrap">
-              <div className="flex items-center gap-2 text-xs text-zinc-600">
-                <span className="font-semibold text-zinc-600">
-                  {isAllOffline ? 'All Devices Offline' : 'Downtime Reported'}
-                </span>
-                <span className="text-zinc-300">•</span>
-                <span className="text-zinc-500">
-                  {site.offlineCount || site.deviceCount} / {site.deviceCount} offline
-                </span>
-              </div>
+            {/* Location */}
+            <p className="text-xs font-medium text-slate-500 truncate">
+              {locationText}
+            </p>
 
-              {onLocateOnMap && (
-                <button
-                  type="button"
-                  onClick={handleLocate}
-                  className="inline-flex items-center gap-1 text-xs font-semibold text-[#237227] hover:text-[#1b5e20] hover:underline cursor-pointer transition-colors"
-                >
-                  <span>Locate on Map</span>
-                  <ChevronRight className="h-3 w-3" />
-                </button>
-              )}
+            {/* Downtime */}
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <span className="text-[11px] font-medium text-slate-500">Downtime:</span>
+              <span className="text-[11px] font-bold text-rose-600">
+                {site.downtimeDuration || 'Just now'}
+              </span>
             </div>
           </div>
 
-          {/* Right Controls: Timer (Gray) + Dismiss Button (Gray) */}
+          {/* Right Controls: Timer Countdown + Dismiss Button */}
           <div className="flex flex-col items-end gap-2 shrink-0 pl-1">
             <button
               type="button"
               onClick={handleDismiss}
-              className="h-7 w-7 rounded-lg text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 flex items-center justify-center transition-colors cursor-pointer"
+              className="h-6 w-6 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center transition-colors cursor-pointer"
               title="Dismiss notification"
             >
               <X className="h-4 w-4" />
             </button>
-            <span className="text-[11px] font-mono text-zinc-400 pr-1">
+            <span className="text-[9px] font-mono font-medium text-slate-400 select-none bg-slate-100 px-1 py-0.5 rounded border border-slate-200/70">
               {secondsRemaining}s
             </span>
           </div>
         </div>
 
-        {/* Smooth Auto-Dismiss Progress Bar (Gray) */}
-        <div className="h-1 w-full bg-zinc-100 overflow-hidden">
+        {/* 100% Continuous Fluid Progress Bar (No 1-Second Stepping / Pausing) */}
+        <div className="h-1 w-full bg-slate-100 overflow-hidden">
           <div 
-            className="h-full bg-zinc-400 transition-all duration-1000 ease-linear"
+            className="h-full bg-rose-600 transition-all duration-75 ease-linear"
             style={{ width: `${progressPercent}%` }}
           />
         </div>

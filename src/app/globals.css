@@ -144,3 +144,15 @@ body {
   background-color: #f1f5f9 !important;
 }
 
+/* Hide Next.js dev overlay indicator and badge */
+[data-nextjs-toast],
+[data-nextjs-dev-overlay-container],
+[data-next-badge],
+nextjs-portal,
+#__next-build-watcher {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+

@@ -35,9 +35,9 @@ export async function GET(req: NextRequest) {
         console.warn('[API /api/sites] Realtime auto-sync error:', autoSyncErr);
       }
     } else {
-      // Realtime periodic background refresh (every 5s) so data stays freshly synchronized without blocking the response
+      // Realtime periodic background refresh (every 60s) so data stays freshly synchronized without exhausting Ruijie Cloud API limits
       const now = Date.now();
-      if (!isSyncingInBackground && now - lastRuijieSyncTime > 5000) {
+      if (!isSyncingInBackground && now - lastRuijieSyncTime > 60000) {
         isSyncingInBackground = true;
         syncRuijieCloudTelemetry()
           .then(() => {

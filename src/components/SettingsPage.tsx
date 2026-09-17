@@ -289,28 +289,82 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   };
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col bg-[#f8fafc] text-zinc-900 overflow-y-auto px-4 sm:px-6 lg:px-8 py-4 font-sans select-none">
+    <div className="flex-1 min-h-0 flex flex-col bg-[#f8fafc] text-zinc-900 overflow-y-auto px-4 sm:px-6 lg:px-8 py-4 font-sans select-none" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
       
-      {/* 1. TOP HEADER: TITLE & LIVE DATE (MATCHING REFERENCE EXACTLY) */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 shrink-0">
-        <div>
-          <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
-            {t('settingsTitle', activeLang)}
-          </h1>
-          <p className="text-xs text-slate-500 font-medium mt-0.5" suppressHydrationWarning>
-            {formatLocalizedDate(new Date(), activeLang, activeTz, 'long')}
-          </p>
+      {/* 1. UNIFIED TOP ROW: NAVIGATION TABS ON LEFT, ACTION BUTTONS ON RIGHT */}
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200/80 mb-5 pb-1 shrink-0">
+        {/* Left: Navigation Tabs */}
+        <div className="flex items-center gap-2 sm:gap-6 overflow-x-auto">
+          <button
+            type="button"
+            onClick={() => setCurrentTab('general')}
+            className={`pb-2.5 px-2 text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+              currentTab === 'general'
+                ? 'text-[#237227] border-b-2 border-[#237227]'
+                : 'text-slate-500 hover:text-slate-900 border-b-2 border-transparent'
+            }`}
+          >
+            {t('tabGeneral', activeLang)}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setCurrentTab('account')}
+            className={`pb-2.5 px-2 text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+              currentTab === 'account'
+                ? 'text-[#237227] border-b-2 border-[#237227]'
+                : 'text-slate-500 hover:text-slate-900 border-b-2 border-transparent'
+            }`}
+          >
+            {t('tabAccount', activeLang)}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setCurrentTab('security')}
+            className={`pb-2.5 px-2 text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+              currentTab === 'security'
+                ? 'text-[#237227] border-b-2 border-[#237227]'
+                : 'text-slate-500 hover:text-slate-900 border-b-2 border-transparent'
+            }`}
+          >
+            {t('tabSecurity', activeLang)}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setCurrentTab('notifications')}
+            className={`pb-2.5 px-2 text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+              currentTab === 'notifications'
+                ? 'text-[#237227] border-b-2 border-[#237227]'
+                : 'text-slate-500 hover:text-slate-900 border-b-2 border-transparent'
+            }`}
+          >
+            {t('tabNotifications', activeLang)}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setCurrentTab('cloud')}
+            className={`pb-2.5 px-2 text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+              currentTab === 'cloud'
+                ? 'text-[#237227] border-b-2 border-[#237227]'
+                : 'text-slate-500 hover:text-slate-900 border-b-2 border-transparent'
+            }`}
+          >
+            {t('tabCloud', activeLang)}
+          </button>
         </div>
 
-        {/* Action Controls (View / Edit mode toggles, No Night Mode) */}
-        <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+        {/* Right: Action Controls */}
+        <div className="flex items-center gap-2 pb-1.5 shrink-0">
           {!isEditing ? (
             <>
               <button
                 type="button"
                 onClick={handleExportBackup}
                 title="Download JSON configuration backup"
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors shadow-2xs cursor-pointer"
+                className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors shadow-2xs cursor-pointer"
               >
                 <Download className="h-3.5 w-3.5 text-slate-500" />
                 <span>{t('exportConfig', activeLang)}</span>
@@ -320,7 +374,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                 type="button"
                 onClick={onResetSettings}
                 title="Reset to default settings"
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors shadow-2xs cursor-pointer"
+                className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors shadow-2xs cursor-pointer"
               >
                 <RotateCcw className="h-3.5 w-3.5 text-slate-400" />
                 {t('reset', activeLang)}
@@ -329,7 +383,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
               <button
                 type="button"
                 onClick={() => setIsEditing(true)}
-                className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold text-white bg-[#237227] hover:bg-[#1b5e20] rounded-xl transition-all shadow-xs cursor-pointer"
+                className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold text-white bg-[#237227] hover:bg-[#1b5b1f] rounded-xl transition-all shadow-2xs cursor-pointer"
               >
                 <Pencil className="h-3.5 w-3.5" />
                 {t('editSettings', activeLang)}
@@ -349,10 +403,10 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
               <button
                 type="button"
                 onClick={handleSave}
-                className={`flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold text-white rounded-xl transition-all shadow-xs cursor-pointer ${
+                className={`flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold text-white rounded-xl transition-all shadow-2xs cursor-pointer ${
                   isSaved 
                     ? 'bg-[#237227]' 
-                    : 'bg-[#237227] hover:bg-[#1b5e20]'
+                    : 'bg-[#237227] hover:bg-[#1b5b1f]'
                 }`}
               >
                 {isSaved ? <Check className="h-3.5 w-3.5" /> : <Save className="h-3.5 w-3.5" />}
@@ -361,69 +415,6 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
             </>
           )}
         </div>
-      </div>
-
-      {/* 2. HORIZONTAL NAVIGATION TABS (MATCHING REFERENCE EXACTLY) */}
-      <div className="flex items-center gap-2 sm:gap-6 border-b border-slate-200/80 mb-5 shrink-0 overflow-x-auto">
-        <button
-          type="button"
-          onClick={() => setCurrentTab('general')}
-          className={`pb-2.5 px-2 text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
-            currentTab === 'general'
-              ? 'text-[#237227] border-b-2 border-[#237227]'
-              : 'text-slate-500 hover:text-slate-900 border-b-2 border-transparent'
-          }`}
-        >
-          {t('tabGeneral', activeLang)}
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setCurrentTab('account')}
-          className={`pb-2.5 px-2 text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
-            currentTab === 'account'
-              ? 'text-[#237227] border-b-2 border-[#237227]'
-              : 'text-slate-500 hover:text-slate-900 border-b-2 border-transparent'
-          }`}
-        >
-          {t('tabAccount', activeLang)}
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setCurrentTab('security')}
-          className={`pb-2.5 px-2 text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
-            currentTab === 'security'
-              ? 'text-[#237227] border-b-2 border-[#237227]'
-              : 'text-slate-500 hover:text-slate-900 border-b-2 border-transparent'
-          }`}
-        >
-          {t('tabSecurity', activeLang)}
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setCurrentTab('notifications')}
-          className={`pb-2.5 px-2 text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
-            currentTab === 'notifications'
-              ? 'text-[#237227] border-b-2 border-[#237227]'
-              : 'text-slate-500 hover:text-slate-900 border-b-2 border-transparent'
-          }`}
-        >
-          {t('tabNotifications', activeLang)}
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setCurrentTab('cloud')}
-          className={`pb-2.5 px-2 text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
-            currentTab === 'cloud'
-              ? 'text-[#237227] border-b-2 border-[#237227]'
-              : 'text-slate-500 hover:text-slate-900 border-b-2 border-transparent'
-          }`}
-        >
-          {t('tabCloud', activeLang)}
-        </button>
       </div>
 
       {/* Sync Status Toast Notice */}
@@ -1176,7 +1167,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                       <input
                         type="text"
                         disabled={!isEditing}
-                        value={formData.monitoring.ruijieAppId || 'open1312043d9a82'}
+                        value={formData.monitoring.ruijieAppId || 'open1d9ecf635290'}
                         onChange={(e) =>
                           setFormData({
                             ...formData,
@@ -1195,7 +1186,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                       <input
                         type={isEditing ? 'text' : 'password'}
                         disabled={!isEditing}
-                        value={formData.monitoring.ruijieAppSecret || '8ARNMqo7uXgU5NTweEmWn46Hvewjcp1PtqfXTKDZTj29'}
+                        value={formData.monitoring.ruijieAppSecret || 'a5dfb884bd7847cf8f21d28088f48a7e'}
                         onChange={(e) =>
                           setFormData({
                             ...formData,

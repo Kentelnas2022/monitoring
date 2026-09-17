@@ -37,6 +37,8 @@ export interface SiteInfrastructure {
   switchCount?: number;
   switchOffline?: number;
   devices?: SiteDevice[];
+  egressIp?: string;
+  configStatus?: string;
 }
 
 export interface SiteDevice {
@@ -48,6 +50,8 @@ export interface SiteDevice {
   ipAddress?: string;
   deviceType: 'AccessPoint' | 'Gateway' | 'Switch' | string;
   status: 'Online' | 'Offline' | string;
+  configStatus?: string;
+  egressIp?: string;
 }
 
 export interface DowntimeEvent {

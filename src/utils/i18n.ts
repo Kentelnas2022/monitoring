@@ -27,13 +27,15 @@ export const translations: Record<AppLanguage, Record<string, string>> = {
   English: {
     // Navigation & General
     navDashboard: 'Dashboard',
-    navReceiver: 'Designated Area Assignment',
+    navMonitoring: 'Live Monitoring',
+    navReceiver: 'Area Assignments',
     navActivity: 'Activity logs',
     navSettings: 'Settings',
     navSignOut: 'Sign out',
     
     // Header Titles
     headerDashboard: 'Dashboard',
+    headerMonitoring: 'Live Monitoring',
     headerReceiver: 'Designated Area Assignment',
     headerActivity: 'Activity Logs',
     headerSettings: 'Settings',

@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json().catch(() => ({}));
     const action = body.action || 'trigger';
-    const targetSiteId = body.siteId || 'site-rcv-027'; // DICT_PICS_NUNUNGAN (Lanao del Norte)
+    const targetSiteId = body.siteId || 'site-ojt';
 
     if (action === 'trigger') {
       const [siteRows]: any = await pool.query('SELECT * FROM sites WHERE id = ?', [targetSiteId]);

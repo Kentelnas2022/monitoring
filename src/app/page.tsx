@@ -5,6 +5,7 @@ export default async function Page() {
   const cookieStore = await cookies();
   const sessionCookie = cookieStore.get('monitoring_auth_session')?.value;
   const userCookie = cookieStore.get('monitoring_auth_user')?.value;
+  const sectionCookie = cookieStore.get('monitoring_active_section')?.value;
 
   const isAuthenticated = sessionCookie === 'true';
   let currentUser = null;
@@ -15,10 +16,16 @@ export default async function Page() {
     } catch {}
   }
 
+  const validSections = ['dashboard', 'monitoring', 'receiver', 'activity', 'settings'];
+  const initialActiveSection = validSections.includes(sectionCookie || '') 
+    ? (sectionCookie as any) 
+    : 'dashboard';
+
   return (
     <DashboardClient
       initialAuthenticated={isAuthenticated}
       initialUser={currentUser}
+      initialActiveSection={initialActiveSection}
     />
   );
 }

@@ -254,11 +254,26 @@ export const ReceiverPage: React.FC<ReceiverPageProps> = ({
     return matched.filter((s) => s.status === 'Downtime' || s.offlineCount > 0);
   };
 
-  const handleDelete = (id: string) => {
+  const [itemToDelete, setItemToDelete] = useState<AreaAssignment | null>(null);
+
+  const confirmDelete = () => {
+    if (!itemToDelete) return;
+    const id = itemToDelete.id;
+    const deletedArea = itemToDelete.area;
+    const deletedPerson = itemToDelete.personName;
+
     setAssignments((prev) => prev.filter((a) => a.id !== id));
     fetch(`/api/assignments?id=${id}`, { method: 'DELETE' }).catch((e) =>
       console.warn('Assignments delete sync error:', e)
     );
+
+    setToastMsg(`Successfully deleted assignment for ${deletedPerson} in ${deletedArea}.`);
+    setTimeout(() => setToastMsg(null), 5000);
+    setItemToDelete(null);
+  };
+
+  const handleDelete = (item: AreaAssignment) => {
+    setItemToDelete(item);
   };
 
   // Initial load from dynamic database API
@@ -309,20 +324,27 @@ export const ReceiverPage: React.FC<ReceiverPageProps> = ({
   const startItem = filteredAssignments.length === 0 ? 0 : (currentPage - 1) * rowsPerPage + 1;
   const endItem = Math.min(currentPage * rowsPerPage, filteredAssignments.length);
 
-  // Generate pagination page numbers window
+  // Generate pagination page numbers window (never long, truncated with ellipsis when totalPages > 5)
   const pageNumbers = useMemo(() => {
-    const pages: number[] = [];
-    const maxVisible = 5;
-    let start = Math.max(1, currentPage - 2);
-    let end = Math.min(totalPages, start + maxVisible - 1);
+    if (totalPages <= 5) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    }
+    const pages: (number | string)[] = [1];
+    let start = Math.max(2, currentPage - 1);
+    let end = Math.min(totalPages - 1, currentPage + 1);
 
-    if (end - start < maxVisible - 1) {
-      start = Math.max(1, end - maxVisible + 1);
+    if (currentPage <= 3) {
+      start = 2;
+      end = Math.min(totalPages - 1, 4);
+    } else if (currentPage >= totalPages - 2) {
+      start = Math.max(2, totalPages - 3);
+      end = totalPages - 1;
     }
 
-    for (let i = start; i <= end; i++) {
-      pages.push(i);
-    }
+    if (start > 2) pages.push('...');
+    for (let i = start; i <= end; i++) pages.push(i);
+    if (end < totalPages - 1) pages.push('...');
+    pages.push(totalPages);
     return pages;
   }, [currentPage, totalPages]);
 
@@ -372,23 +394,36 @@ export const ReceiverPage: React.FC<ReceiverPageProps> = ({
         </div>
       )}
 
-      {/* SEARCH BAR */}
-      <div className="relative">
-        <Search className="h-4 w-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={(e) => {
-            setSearchQuery(e.target.value);
-            setCurrentPage(1);
-          }}
-          placeholder="Search by designated area, assigned person, or Telegram account..."
-          className="w-full rounded-xl border border-slate-200 bg-white pl-10 pr-4 py-2.5 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-[#237227] shadow-2xs transition-colors"
-        />
-      </div>
+      {/* UNIFIED ASSIGNMENTS TABLE CARD */}
+      <div className="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden flex flex-col">
+        {/* Table Top Header Bar (Title, Count & Search in 1 single unified line) */}
+        <div className="border-b border-slate-100 bg-white px-5 sm:px-6 py-4 shrink-0 flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-2.5">
+            <h3 className="text-base font-bold text-slate-800 tracking-tight">
+              Active Area Assignments
+            </h3>
+            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200/60">
+              {filteredAssignments.length}
+            </span>
+          </div>
 
-      {/* ASSIGNMENTS LIST (MINIMALIST TABLE / CARDS) */}
-      <div className="bg-white border border-slate-200/80 rounded-2xl shadow-2xs overflow-hidden flex-1 flex flex-col">
+          {/* Search Input */}
+          <div className="relative w-full sm:w-72">
+            <Search className="h-4 w-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setCurrentPage(1);
+              }}
+              placeholder="Search area, person, or Telegram..."
+              className="w-full h-9 rounded-xl border border-slate-200 bg-slate-50/70 pl-9.5 pr-3.5 text-xs font-medium text-slate-800 placeholder-slate-400 hover:border-slate-300 focus:border-[#237227] focus:bg-white focus:outline-none transition-all shadow-2xs"
+              style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}
+            />
+          </div>
+        </div>
+
         {filteredAssignments.length === 0 ? (
           <div className="py-16 px-4 text-center flex flex-col items-center justify-center">
             <div className="h-12 w-12 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400 mb-3">
@@ -401,14 +436,14 @@ export const ReceiverPage: React.FC<ReceiverPageProps> = ({
           </div>
         ) : (
           <>
-            <div className="overflow-x-auto flex-1">
-              <table className="w-full text-left border-collapse">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
                 <thead>
-                  <tr className="border-b border-slate-100 bg-slate-50/70 text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                    <th className="py-3.5 px-4 sm:px-6">Designated Area & Status</th>
-                    <th className="py-3.5 px-4 sm:px-6">Assigned Person</th>
-                    <th className="py-3.5 px-4 sm:px-6">Telegram Recipient</th>
-                    <th className="py-3.5 px-4 sm:px-6 text-right">Actions</th>
+                  <tr className="border-b border-slate-200/80 bg-slate-50/80 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                    <th className="py-3 px-5 sm:px-6 w-[32%]">DESIGNATED AREA & STATUS</th>
+                    <th className="py-3 px-4 sm:px-6 w-[28%]">ASSIGNED PERSON</th>
+                    <th className="py-3 px-4 sm:px-6 w-[28%]">TELEGRAM RECIPIENT</th>
+                    <th className="py-3 px-5 sm:px-6 w-[12%] text-right">ACTIONS</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-xs sm:text-sm">
@@ -420,28 +455,30 @@ export const ReceiverPage: React.FC<ReceiverPageProps> = ({
                     const isNumericChatId = /^\d+$/.test(item.telegram);
 
                     return (
-                      <tr key={item.id} className="hover:bg-slate-50/60 transition-colors">
+                      <tr key={item.id} className="hover:bg-slate-50/70 transition-colors">
                         {/* Designated Area & Outage Health */}
-                        <td className="py-3.5 px-4 sm:px-6 font-semibold text-slate-900">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <div className="flex items-center gap-1.5">
-                              <MapPin className="h-4 w-4 text-[#237227] shrink-0" />
-                              <span className="font-bold">{item.area}</span>
+                        <td className="py-3.5 px-5 sm:px-6">
+                          <div className="flex flex-wrap items-center gap-2.5">
+                            <div className="flex items-center gap-2">
+                              <div className="h-7 w-7 rounded-lg bg-[#237227] text-white flex items-center justify-center shrink-0 shadow-2xs">
+                                <MapPin className="h-4 w-4 text-white" />
+                              </div>
+                              <span className="font-bold text-slate-900 text-sm">{item.area}</span>
                             </div>
                             {totalAreaSites > 0 ? (
                               hasDown ? (
-                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-700 bg-rose-50 px-2.5 py-0.5 rounded-full border border-rose-200 shadow-2xs">
-                                  <span className="h-1.5 w-1.5 rounded-full bg-rose-500 animate-pulse" />
+                                <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-900 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-300 shadow-2xs">
+                                  <span className="h-1.5 w-1.5 rounded-full bg-slate-900 animate-pulse" />
                                   {totalAreaSites} Site{totalAreaSites > 1 ? 's' : ''} • {downSites.length} Down
                                 </span>
                               ) : (
-                                <span className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
-                                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                                <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-[#237227] bg-[#237227]/10 px-2.5 py-1 rounded-md border border-[#237227]/20">
+                                  <span className="h-1.5 w-1.5 rounded-full bg-[#237227]" />
                                   {totalAreaSites} Site{totalAreaSites > 1 ? 's' : ''} • Operational
                                 </span>
                               )
                             ) : (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-full border border-slate-200">
+                              <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-slate-600 bg-slate-100/90 px-2.5 py-1 rounded-md border border-slate-200/80">
                                 <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
                                 Standby Coverage
                               </span>
@@ -450,59 +487,61 @@ export const ReceiverPage: React.FC<ReceiverPageProps> = ({
                         </td>
 
                         {/* Assigned Person */}
-                        <td className="py-3.5 px-4 sm:px-6 text-slate-700 font-medium">
-                          <div>
-                            <span className="font-bold text-slate-800">{item.personName}</span>
-                            {item.phone && (
-                              <span className="text-slate-400 text-xs block mt-0.5">{item.phone}</span>
+                        <td className="py-3.5 px-4 sm:px-6">
+                          <div className="flex flex-col">
+                            <span className="font-bold text-slate-800 text-sm">{item.personName}</span>
+                            {item.phone ? (
+                              <span className="text-slate-500 text-xs mt-0.5 tracking-tight">{item.phone}</span>
+                            ) : (
+                              <span className="text-slate-400 text-xs mt-0.5 italic">No phone number</span>
                             )}
                           </div>
                         </td>
 
                         {/* Telegram Recipient & Account ID */}
                         <td className="py-3.5 px-4 sm:px-6">
-                          <div className="flex flex-col gap-1">
-                            <div className="inline-flex items-center gap-2 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200 w-fit">
+                          <div className="flex flex-col gap-1.5">
+                            <div className="inline-flex items-center gap-2 bg-slate-50/90 px-3 py-1.5 rounded-lg border border-slate-200/90 w-fit shadow-2xs">
                               <Send className="h-3.5 w-3.5 text-[#0088cc] shrink-0" />
                               <a
                                 href={isNumericChatId ? "https://t.me/multifactors_bot" : `https://t.me/${item.telegram}`}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="font-mono text-xs font-semibold text-[#0088cc] hover:underline"
+                                className="font-mono text-xs font-bold text-slate-800 hover:text-[#0088cc] hover:underline"
                               >
                                 {isNumericChatId ? `ID: ${item.telegram}` : `@${item.telegram}`}
                               </a>
-                              <span className="text-[10px] font-semibold text-[#237227] bg-[#eaf3eb] px-1.5 py-0.2 rounded border border-emerald-200/60">
+                              <span className="text-[10px] font-bold text-[#237227] bg-[#237227]/10 px-1.5 py-0.5 rounded border border-[#237227]/20">
                                 Connected
                               </span>
                             </div>
                             {item.chatId && !isNumericChatId && (
-                              <div className="flex items-center gap-1 text-[11px] text-slate-500 pl-1 font-mono">
-                                <span>Account ID:</span>
-                                <strong className="text-slate-800 bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200/70">{item.chatId}</strong>
+                              <div className="flex items-center gap-1.5 text-[11px] text-slate-500 pl-1 font-mono">
+                                <span className="text-slate-400">Account ID:</span>
+                                <strong className="text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200/80 text-[11px]">{item.chatId}</strong>
                               </div>
                             )}
                           </div>
                         </td>
 
                         {/* Actions */}
-                        <td className="py-3.5 px-4 sm:px-6 text-right">
-                          <div className="inline-flex items-center gap-1.5">
+                        <td className="py-3.5 px-5 sm:px-6 text-right">
+                          <div className="inline-flex items-center gap-1 justify-end">
                             <button
                               type="button"
                               onClick={() => openEditModal(item)}
                               title="Edit Assignment"
-                              className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 cursor-pointer transition-colors"
+                              className="p-2 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 cursor-pointer transition-colors"
                             >
-                              <Edit2 className="h-3.5 w-3.5" />
+                              <Edit2 className="h-4 w-4" />
                             </button>
                             <button
                               type="button"
-                              onClick={() => handleDelete(item.id)}
+                              onClick={() => handleDelete(item)}
                               title="Remove Assignment"
-                              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer transition-colors"
+                              className="p-2 rounded-lg text-slate-400 hover:text-slate-800 hover:bg-slate-100 cursor-pointer transition-colors"
                             >
-                              <Trash2 className="h-3.5 w-3.5" />
+                              <Trash2 className="h-4 w-4" />
                             </button>
                           </div>
                         </td>
@@ -514,7 +553,7 @@ export const ReceiverPage: React.FC<ReceiverPageProps> = ({
             </div>
 
             {/* PAGINATION CONTROLS FOOTER */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/70 px-4 sm:px-6 py-3 text-xs text-slate-600 shrink-0">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/70 px-5 sm:px-6 py-3.5 text-xs text-slate-600 shrink-0">
               {/* Left: Summary and Rows per Page */}
               <div className="flex flex-wrap items-center gap-3">
                 <span className="font-medium text-slate-600">
@@ -522,15 +561,15 @@ export const ReceiverPage: React.FC<ReceiverPageProps> = ({
                 </span>
 
                 {/* Rows Per Page Dropdown */}
-                <div className="flex items-center gap-1.5 pl-2 border-l border-slate-200">
-                  <span className="text-slate-500 text-xs">Rows per page:</span>
+                <div className="flex items-center gap-1.5 pl-3 border-l border-slate-200">
+                  <span className="text-slate-500 text-xs font-medium">Rows per page:</span>
                   <select
                     value={rowsPerPage}
                     onChange={(e) => {
                       setRowsPerPage(Number(e.target.value));
                       setCurrentPage(1);
                     }}
-                    className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-800 focus:border-[#237227] focus:outline-none cursor-pointer shadow-2xs transition-colors"
+                    className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-bold text-slate-800 focus:border-[#237227] focus:outline-none cursor-pointer shadow-2xs transition-colors"
                   >
                     <option value={5}>5</option>
                     <option value={10}>10</option>
@@ -564,19 +603,25 @@ export const ReceiverPage: React.FC<ReceiverPageProps> = ({
 
                 {/* Page Number Buttons */}
                 <div className="flex items-center gap-1 px-1">
-                  {pageNumbers.map((pageNum) => (
-                    <button
-                      key={pageNum}
-                      type="button"
-                      onClick={() => setCurrentPage(pageNum)}
-                      className={`min-w-[30px] h-7 px-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                        currentPage === pageNum
-                          ? 'bg-[#237227] text-white shadow-2xs'
-                          : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-100'
-                      }`}
-                    >
-                      {pageNum}
-                    </button>
+                  {pageNumbers.map((pageNum, idx) => (
+                    typeof pageNum === 'number' ? (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => setCurrentPage(pageNum)}
+                        className={`min-w-[30px] h-7 px-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                          currentPage === pageNum
+                            ? 'bg-[#237227] text-white shadow-2xs'
+                            : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-100'
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    ) : (
+                      <span key={idx} className="px-1 text-xs text-slate-400 font-bold">
+                        ...
+                      </span>
+                    )
                   ))}
                 </div>
 
@@ -804,6 +849,51 @@ export const ReceiverPage: React.FC<ReceiverPageProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* DELETE CONFIRMATION MODAL */}
+      {itemToDelete && (
+        <div 
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-in fade-in duration-150"
+          onClick={() => setItemToDelete(null)}
+        >
+          <div 
+            className="w-full max-w-md bg-white rounded-2xl p-5 shadow-2xl border border-slate-200 animate-in zoom-in-95 duration-150 flex flex-col gap-4"
+            style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start gap-3.5">
+              <div className="h-10 w-10 rounded-xl bg-rose-50 border border-rose-100 flex items-center justify-center text-rose-600 shrink-0">
+                <Trash2 className="h-5 w-5 text-rose-600" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-base font-bold text-slate-900 tracking-tight">
+                  Delete Area Assignment?
+                </h3>
+                <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                  Are you sure you want to remove the assignment for <strong className="text-slate-800 font-bold">{itemToDelete.personName}</strong> in <strong className="text-slate-800 font-bold">{itemToDelete.area}</strong>? Automated Telegram outage notifications for this area will no longer be dispatched to this recipient.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setItemToDelete(null)}
+                className="px-4 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold cursor-pointer transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDelete}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold cursor-pointer transition-colors shadow-2xs"
+              >
+                Delete Assignment
+              </button>
+            </div>
           </div>
         </div>
       )}

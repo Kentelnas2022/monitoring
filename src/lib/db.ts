@@ -1,20 +1,137 @@
+import type { Pool, RowDataPacket } from 'mysql2/promise';
 import { initialSystemSettings } from '@/data/mockSettings';
 import { ActivityLog, AssignedHandler, SiteInfrastructure } from '@/types/dashboard';
+import { SystemSettings } from '@/types/settings';
 import { hashPassword, verifyPassword } from '@/lib/auth';
 
-// We import mysql2 dynamically or safely so the app never crashes if mysql2 is optional or building
-let mysqlPool: any = null;
-let poolPromise: Promise<any> | null = null;
+interface UserRecord {
+  id: string;
+  fullName: string;
+  email: string;
+  username: string;
+  role: string;
+  status: string;
+  password?: string;
+  twoFactorEnabled?: boolean;
+  lastLoginAt?: string;
+}
+
+interface AreaAssignmentRecord {
+  id: string;
+  area: string;
+  personName: string;
+  phone: string;
+  telegram: string;
+  chatId?: string;
+  role: string;
+  status: string;
+}
+
+interface TelegramDispatchRecord {
+  id: string;
+  siteId?: string;
+  siteName: string;
+  recipientName: string;
+  telegramUsername: string;
+  chatId?: string;
+  messageBody: string;
+  status: 'Sent' | 'Delivered' | 'Failed';
+  notes?: string;
+  sentAt?: string;
+}
+
+interface DbUserRow extends RowDataPacket {
+  id: string;
+  full_name: string;
+  email: string;
+  username: string;
+  password_hash: string;
+  role: string;
+  status: string;
+  two_factor_enabled?: number;
+  last_login_at?: Date | string;
+}
+
+interface DbSiteRow extends RowDataPacket {
+  id: string;
+  name: string;
+  code: string;
+  region: string;
+  province: string;
+  status: 'Operational' | 'Downtime' | 'Maintenance';
+  device_count: number;
+  offline_count: number;
+  online_count: number;
+  active_alarm_count: number;
+  alarm_type?: string;
+  severity?: 'Critical' | 'Moderate';
+  downtime_started_at?: Date | string;
+  last_known_ip: string;
+  latitude: number | string;
+  longitude: number | string;
+  ap_count?: number;
+  ap_offline?: number;
+  gateway_count?: number;
+  gateway_offline?: number;
+  switch_count?: number;
+  switch_offline?: number;
+  contact_person_name?: string;
+  contact_person_phone?: string;
+  contact_person_social?: string;
+  contact_person_role?: string;
+  handler_name?: string;
+  handler_phone?: string;
+  handler_telegram?: string;
+  handler_chat_id?: string;
+  handler_role?: string;
+  event_alarm_type?: string;
+  event_severity?: 'Critical' | 'Moderate';
+  duration_seconds?: number;
+}
+
+interface DbDeviceRow extends RowDataPacket {
+  id: string;
+  site_id: string;
+  device_name: string;
+  model: string;
+  serial_number: string;
+  mac_address: string;
+  ip_address: string;
+  device_type: string;
+  status: string;
+}
+
+interface DbEventRow extends RowDataPacket {
+  id: string;
+  site_id: string;
+  site_name: string;
+  site_code: string;
+  province: string;
+  alarm_type: string;
+  severity: 'Critical' | 'Moderate';
+  generated_at: string;
+  duration_seconds: number;
+  affected_device_count: number;
+  offline_device_count: number;
+  last_known_ip: string;
+  handler_name?: string;
+  handler_phone?: string;
+  handler_telegram?: string;
+  status: string;
+}
+
+// MySQL pool initialized safely
+let mysqlPool: Pool | null = null;
+let poolPromise: Promise<Pool | null> | null = null;
 let isConnectedToLiveDb = false;
 let lastConnectionAttempt = 0;
 let connectionFailed = false;
 
 // Initialize MySQL pool safely and verify connectivity before returning
-export async function getDbPool() {
+export async function getDbPool(): Promise<Pool | null> {
   if (mysqlPool && isConnectedToLiveDb) return mysqlPool;
   if (poolPromise) return poolPromise;
 
-  // Don't hammer a failing connection continuously on every request
   const now = Date.now();
   if (connectionFailed && now - lastConnectionAttempt < 10000) {
     return null;
@@ -31,7 +148,7 @@ export async function getDbPool() {
 
     try {
       const mysql = await import('mysql2/promise');
-      let candidatePool: any = null;
+      let candidatePool: Pool | null = null;
 
       if (dbUrl) {
         candidatePool = mysql.createPool({
@@ -53,18 +170,44 @@ export async function getDbPool() {
         });
       }
 
-      // Verify connection with quick ping test
+      // Verify connection with ping
       const conn = await candidatePool.getConnection();
       await conn.ping();
+
+      // Ensure contact person columns exist on sites table in MySQL
+      try {
+        await conn.query(`
+          ALTER TABLE sites 
+          ADD COLUMN IF NOT EXISTS contact_person_name VARCHAR(120) NULL,
+          ADD COLUMN IF NOT EXISTS contact_person_phone VARCHAR(32) NULL,
+          ADD COLUMN IF NOT EXISTS contact_person_social VARCHAR(64) NULL,
+          ADD COLUMN IF NOT EXISTS contact_person_role VARCHAR(80) NULL DEFAULT 'Designated Responder'
+        `);
+      } catch {
+        // Fallback for MySQL versions without IF NOT EXISTS on ADD COLUMN
+        try {
+          await conn.query('ALTER TABLE sites ADD COLUMN contact_person_name VARCHAR(120) NULL');
+        } catch {}
+        try {
+          await conn.query('ALTER TABLE sites ADD COLUMN contact_person_phone VARCHAR(32) NULL');
+        } catch {}
+        try {
+          await conn.query('ALTER TABLE sites ADD COLUMN contact_person_social VARCHAR(64) NULL');
+        } catch {}
+        try {
+          await conn.query('ALTER TABLE sites ADD COLUMN contact_person_role VARCHAR(80) NULL DEFAULT "Designated Responder"');
+        } catch {}
+      }
+
       conn.release();
 
       mysqlPool = candidatePool;
       isConnectedToLiveDb = true;
       connectionFailed = false;
-      console.log(`[Database] Connected successfully to live MySQL database: ${database} at ${host}:${port}`);
       return mysqlPool;
-    } catch (err: any) {
-      console.warn(`[Database Notice] Could not connect to live MySQL (${err.message}). Using resilient in-memory store. Check DATABASE_URL in .env.local.`);
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      console.warn(`[Database Notice] Could not connect to live MySQL (${errMsg}). Using resilient in-memory store.`);
       mysqlPool = null;
       isConnectedToLiveDb = false;
       connectionFailed = true;
@@ -80,140 +223,19 @@ export async function getDbPool() {
 // -----------------------------------------------------------------------------
 // IN-MEMORY RESILIENT STORE (Matches MySQL Schema 1:1)
 // -----------------------------------------------------------------------------
-let memoryAssignments: any[] = [];
-
-// Dynamic users collection loaded exclusively from MySQL users table
-let memoryUsers: any[] = [];
-
-// In-memory store is intentionally empty on startup.
-// All real data is sourced from MySQL, which is populated by the Ruijie Cloud sync.
-// Configure RUIJIE_APP_ID + RUIJIE_APP_SECRET in .env.local to start live sync.
-let memorySites: SiteInfrastructure[] = [];
+let memoryAssignments: AreaAssignmentRecord[] = [];
+let memoryUsers: UserRecord[] = [];
+const memorySites: SiteInfrastructure[] = [];
 let memoryActivityLogs: ActivityLog[] = [];
 let memorySettings = { ...initialSystemSettings };
-let memoryDispatches: any[] = [];
+const memoryDispatches: TelegramDispatchRecord[] = [];
 
-// Helper to resolve authentic municipality and landmark address from Ruijie Cloud telemetry
+// Helper to resolve municipality and landmark address from Ruijie Cloud telemetry
 export function parseSiteLocation(name: string, province: string): { municipality: string; landmark?: string } {
-  const n = (name || '').toUpperCase().replace(/[_\.]+/g, ' ').replace(/\s+/g, ' ').trim();
-  let municipality = '';
-  let landmark = '';
-
-  // Misamis Occidental Municipalities
-  if (n.includes('TANGUB')) municipality = 'Tangub City';
-  else if (n.includes('OROQUIETA') || n.includes('OROQUITA')) municipality = 'Oroquieta City';
-  else if (n.includes('OZAMIS') || n.includes('OZAMIZ')) municipality = 'Ozamiz City';
-  else if (n.includes('BONIFACIO')) municipality = 'Bonifacio';
-  else if (n.includes('CALAMBA')) municipality = 'Calamba';
-  else if (n.includes('CLARIN')) municipality = 'Clarin';
-  else if (n.includes('DON VIC')) municipality = 'Don Victoriano';
-  else if (n.includes('JIMENEZ')) municipality = 'Jimenez';
-  else if (n.includes('LOPEZ JAENA')) municipality = 'Lopez Jaena';
-  else if (n.includes('PLARIDEL')) municipality = 'Plaridel';
-  else if (n.includes('SAPANG DALAGA') || n.includes('SAPANG')) municipality = 'Sapang Dalaga';
-  else if (n.includes('SINACABAN')) municipality = 'Sinacaban';
-  else if (n.includes('TUDELA')) municipality = 'Tudela';
-  else if (n.includes('ALORAN')) municipality = 'Aloran';
-  else if (n.includes('CONCEPCION')) municipality = 'Concepcion';
-  else if (n.includes('BALIANGAO')) municipality = 'Baliangao';
-  else if (n.includes('PANAON')) municipality = 'Panaon';
-  else if (n.includes('PROV CAPITOL') || n.includes('PROV HOSP OROQUIETA') || n.includes('CAPITOL')) municipality = 'Oroquieta City';
-  else if (n.includes('MHARS')) municipality = 'Ozamiz City';
-
-  // Lanao del Norte Municipalities
-  else if (n.includes('KAUSWAGAN')) municipality = 'Kauswagan';
-  else if (n.includes('BACOLOD')) municipality = 'Bacolod';
-  else if (n.includes('BALOI') || n.includes('BALO I') || n.includes('BALO-I')) municipality = 'Baloi';
-  else if (n.includes('BAROY')) municipality = 'Baroy';
-  else if (n.includes('KOLAMBUGAN')) municipality = 'Kolambugan';
-  else if (n.includes('LINAMON')) municipality = 'Linamon';
-  else if (n.includes('MAIGO')) municipality = 'Maigo';
-  else if (n.includes('MATUNGAO')) municipality = 'Matungao';
-  else if (n.includes('MUNAI')) municipality = 'Munai';
-  else if (n.includes('NUNUNGAN')) municipality = 'Nunungan';
-  else if (n.includes('PANTAORAGAT') || n.includes('PANTAO')) municipality = 'Pantao Ragat';
-  else if (n.includes('PANTAR')) municipality = 'Pantar';
-  else if (n.includes('POONA')) municipality = 'Poona Piagapo';
-  else if (n.includes('SALVADOR')) municipality = 'Salvador';
-  else if (n.includes('SAPAD')) municipality = 'Sapad';
-  else if (n.includes('SND') || n.includes('SULTAN NAGA')) municipality = 'Sultan Naga Dimaporo';
-  else if (n.includes('TAGOLOAN') && (province || '').includes('Lanao')) municipality = 'Tagoloan';
-  else if (n.includes('TANKAL')) municipality = 'Tankal';
-  else if (n.includes('TUBOD')) municipality = 'Tubod';
-  else if (n.includes('MAGSAYSAY') && (province || '').includes('Lanao')) municipality = 'Magsaysay';
-  else if (n.includes('ILIGAN')) municipality = 'Iligan City';
-
-  // Camiguin Municipalities
-  else if (
-    n.includes('MAMBAJAO') || n.includes('GEN HOSPITAL') || n.includes('NINOY AQUINO') || 
-    n.includes('PAROLA') || n.includes('BALBAGON') || n.includes('SAN ROQUE') || 
-    n.includes('YAMBAO') || n.includes('POBLACION') || n.includes('CPSC') ||
-    n.includes('AIRPORT') || n.includes('CUÑA') || n.includes('ARDENT') ||
-    n.includes('YUMBING') || n.includes('KATIBAWASAN') ||
-    n.includes('SPORTS COMPLEX') || n.includes('NAASAG') || (n.includes('TESDA') && (province || '').includes('Camiguin'))
-  ) municipality = 'Mambajao';
-  else if (n.includes('SAGAY') || n.includes('BUCAS') || n.includes('ALANGILAN') || n.includes('BACNIT')) municipality = 'Sagay';
-  else if (
-    n.includes('CATARMAN') || n.includes('CATIBAC') || n.includes('COMPOL') || 
-    n.includes('BURIAS') || n.includes('SUNKEN CEMETERY') || n.includes('OLD CHURCH RUINS') ||
-    n.includes('TUASAN') || n.includes('SODA WATER') || n.includes('TANGARO') ||
-    n.includes('STO NIÑO') || n.includes('BONBON')
-  ) municipality = 'Catarman';
-  else if (n.includes('MAHINOG') || n.includes('MANTIGUE') || n.includes('KATUNGGAN') || n.includes('SAN JOSE') || n.includes('OWAKAN')) municipality = 'Mahinog';
-  else if (n.includes('GUINSILIBAN') || n.includes('BUTAY') || n.includes('CABUAN') || n.includes('CANTAAN') || n.includes('LIONG')) municipality = 'Guinsiliban';
-
-  // Misamis Oriental & CDO
-  else if (n.includes('CDO') || n.includes('CAGAYAN DE ORO') || n.includes('OJT') || n.includes('CAMP EVA') || n.includes('MULTIFACTORS') || n.includes('PATAG')) municipality = 'Cagayan de Oro City';
-  else if (n.includes('EL SAL')) municipality = 'El Salvador City';
-  else if (n.includes('GINGOOG')) municipality = 'Gingoog City';
-  else if (n.includes('ALUBIJID')) municipality = 'Alubijid';
-  else if (n.includes('BALINGOAN')) municipality = 'Balingoan';
-  else if (n.includes('BALINGASAG')) municipality = 'Balingasag';
-  else if (n.includes('CLAVERIA')) municipality = 'Claveria';
-  else if (n.includes('INITAO')) municipality = 'Initao';
-  else if (n.includes('JASAAN')) municipality = 'Jasaan';
-  else if (n.includes('KINOGUITAN')) municipality = 'Kinoguitan';
-  else if (n.includes('LAGUINDINGAN')) municipality = 'Laguindingan';
-  else if (n.includes('LIBERTAD')) municipality = 'Libertad';
-  else if (n.includes('LUGAIT')) municipality = 'Lugait';
-  else if (n.includes('MAGSAYSAY')) municipality = 'Magsaysay';
-  else if (n.includes('MANTICAO')) municipality = 'Manticao';
-  else if (n.includes('MEDINA')) municipality = 'Medina';
-  else if (n.includes('NAAWAN')) municipality = 'Naawan';
-  else if (n.includes('OPOL')) municipality = 'Opol';
-  else if (n.includes('SALAY')) municipality = 'Salay';
-  else if (n.includes('SUGBONGCOGON')) municipality = 'Sugbongcogon';
-  else if (n.includes('TAGOLOAN')) municipality = 'Tagoloan';
-  else if (n.includes('TALISAYAN')) municipality = 'Talisayan';
-  else if (n.includes('VILLANUEVA')) municipality = 'Villanueva';
-
-  // Bukidnon Municipalities
-  else if (n.includes('MALAYBALAY')) municipality = 'Malaybalay City';
-  else if (n.includes('VALENCIA')) municipality = 'Valencia City';
-  else if (n.includes('MARAMAG')) municipality = 'Maramag';
-  else if (n.includes('MANOLO FORTICH') || n.includes('MANOLO')) municipality = 'Manolo Fortich';
-  else if (n.includes('DON CARLOS')) municipality = 'Don Carlos';
-  else if (n.includes('QUEZON')) municipality = 'Quezon';
-  else if (n.includes('SUMILAO')) municipality = 'Sumilao';
-
-  // Specific Landmarks
-  if (n.includes('DONA MA HOS') || n.includes('DONA MARIA')) landmark = 'Doña Maria D. Tan Memorial Hospital';
-  else if (n.includes('CITY HALL')) landmark = 'City Hall';
-  else if (n.includes('MUN HALL') || n.includes('MUNICIPAL')) landmark = 'Municipal Hall';
-  else if (n.includes('PROV HOSPITAL') || n.includes('PROV HOS')) landmark = 'Provincial Hospital';
-  else if (n.includes('MED CENTER') || n.includes('MHARS')) landmark = 'Mayor Hilarion A. Ramiro Sr. Med Center';
-  else if (n.includes('DIS HOSPITAL')) landmark = 'District Hospital';
-  else if (n.includes('COMM HOS')) landmark = 'Community Hospital';
-  else if (n.includes('RHU') || n.includes('RURAL HEALT')) landmark = 'Rural Health Unit';
-  else if (n.includes('SHC') || n.includes('SUPER HEALTH')) landmark = 'Super Health Center';
-  else if (n.includes('TESDA')) landmark = 'TESDA Center';
-  else if (n.includes('CAMP EVA')) landmark = 'Camp Evangelista';
-  else if (n.includes('PARK') || n.includes('PLAZA')) landmark = 'Public Plaza / Park';
-  else if (n.includes('PORT') || n.includes('PAROLA')) landmark = 'Port / Parola';
-  else if (n.includes('TERMINAL')) landmark = 'Transport Terminal';
-  else if (n.includes('COLLEGE') || n.includes('USTP') || n.includes('SCHOOL')) landmark = 'College / University Campus';
-
-  return { municipality: municipality || province, landmark: landmark || undefined };
+  return {
+    municipality: province || name || 'Regional',
+    landmark: name || undefined,
+  };
 }
 
 // -----------------------------------------------------------------------------
@@ -233,15 +255,19 @@ export const db = {
       const pool = await getDbPool();
       if (pool) {
         try {
-          const [rows]: any = await pool.query(
+          const [rows] = await pool.query<DbUserRow[]>(
             'SELECT id, full_name as fullName, email, username, role, status, two_factor_enabled as twoFactorEnabled, last_login_at as lastLoginAt FROM users ORDER BY created_at ASC'
           );
           return rows;
-        } catch (e) {
+        } catch (e: unknown) {
           console.error('[DB error on users.getAll]', e);
         }
       }
-      return memoryUsers.map(({ password, ...u }) => u);
+      return memoryUsers.map((u) => {
+        const cleanUser = { ...u };
+        delete cleanUser.password;
+        return cleanUser;
+      });
     },
 
     async authenticate(identifier: string, passwordAttempt: string) {
@@ -251,7 +277,7 @@ export const db = {
       const pool = await getDbPool();
       if (pool) {
         try {
-          const [rows]: any = await pool.query(
+          const [rows] = await pool.query<DbUserRow[]>(
             'SELECT id, full_name, email, username, password_hash, role, status FROM users WHERE LOWER(username) = ? OR LOWER(email) = ? LIMIT 1',
             [cleanIdent, cleanIdent]
           );
@@ -264,8 +290,6 @@ export const db = {
 
           const row = rows[0];
           const storedPass = row.password_hash;
-          
-          // Accurate bcrypt & password hash validation against MySQL database
           const isValid = verifyPassword(cleanPass, storedPass);
 
           if (isValid) {
@@ -287,7 +311,7 @@ export const db = {
               message: 'Invalid password. Please check your credentials.',
             };
           }
-        } catch (e: any) {
+        } catch (e: unknown) {
           console.error('[DB MySQL auth error]', e);
           return {
             success: false,
@@ -318,7 +342,7 @@ export const db = {
               [updates.fullName, updates.email, id]
             );
           }
-        } catch (e) {
+        } catch (e: unknown) {
           console.error('[DB error on users.updateProfile]', e);
         }
       }
@@ -349,14 +373,14 @@ export const db = {
       const pool = await getDbPool();
       if (pool) {
         try {
-          let rows: any;
+          let rows: DbUserRow[];
           if (cleanIdent) {
-            [rows] = await pool.query(
+            [rows] = await pool.query<DbUserRow[]>(
               'SELECT id, username, email, full_name, password_hash FROM users WHERE id = ? OR LOWER(username) = ? OR LOWER(email) = ? LIMIT 1',
               [cleanIdent, cleanIdent, cleanIdent]
             );
           } else {
-            [rows] = await pool.query(
+            [rows] = await pool.query<DbUserRow[]>(
               'SELECT id, username, email, full_name, password_hash FROM users ORDER BY created_at ASC LIMIT 1'
             );
           }
@@ -371,22 +395,18 @@ export const db = {
             return { success: false, message: 'Current password does not match. Please verify your current password.' };
           }
 
-          // Generate secure bcrypt hash (salt rounds = 10)
           const newBcryptHash = hashPassword(cleanNew);
 
-          // Update users table in MySQL
           await pool.query(
             'UPDATE users SET password_hash = ?, updated_at = NOW() WHERE id = ?',
             [newBcryptHash, user.id]
           );
 
-          // Synchronize to system_settings table if configured
           await pool.query(
             'INSERT INTO system_settings (config_key, config_value, category) VALUES ("account.password", ?, "account") ON DUPLICATE KEY UPDATE config_value = ?',
             [newBcryptHash, newBcryptHash]
           ).catch(() => {});
 
-          // Record security audit log in MySQL
           await db.logs.add({
             type: 'system',
             title: 'Password Updated with Cryptographic Hash',
@@ -399,18 +419,17 @@ export const db = {
             success: true,
             message: 'Password updated and secured with cryptographic hash successfully!',
           };
-        } catch (err: any) {
-          console.error('[DB error on users.changePassword]', err);
-          return { success: false, message: err.message || 'Database error updating password.' };
+        } catch (err: unknown) {
+          const errMsg = err instanceof Error ? err.message : 'Database error updating password.';
+          return { success: false, message: errMsg };
         }
       }
 
-      // Memory store fallback
       const found = memoryUsers.find(
         (u) => u.id === identifier || u.username.toLowerCase() === cleanIdent || u.email.toLowerCase() === cleanIdent
       );
       if (!found) return { success: false, message: 'User account not found.' };
-      if (!verifyPassword(cleanCurrent, found.password)) {
+      if (!verifyPassword(cleanCurrent, found.password || '')) {
         return { success: false, message: 'Current password does not match.' };
       }
       found.password = hashPassword(cleanNew);
@@ -420,15 +439,15 @@ export const db = {
 
   // 1. AREA ASSIGNMENTS
   assignments: {
-    async getAll() {
+    async getAll(): Promise<AreaAssignmentRecord[]> {
       const pool = await getDbPool();
       if (pool) {
         try {
-          const [rows] = await pool.query(
+          const [rows] = await pool.query<RowDataPacket[]>(
             'SELECT id, area_name as area, person_name as personName, phone, telegram_username as telegram, telegram_chat_id as chatId, role, status FROM area_assignments ORDER BY created_at ASC'
           );
-          return rows;
-        } catch (e) {
+          return rows as unknown as AreaAssignmentRecord[];
+        } catch (e: unknown) {
           console.error('[DB error on assignments.getAll]', e);
         }
       }
@@ -445,12 +464,12 @@ export const db = {
             'INSERT INTO area_assignments (id, area_name, person_name, phone, telegram_username, telegram_chat_id, role, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
             [id, item.area, item.personName, item.phone, item.telegram.replace(/^@/, ''), chatId, item.role || 'Designated Area Responder', 'Connected']
           );
-        } catch (e) {
+        } catch (e: unknown) {
           console.error('[DB error on assignments.add]', e);
         }
       }
 
-      const newItem = {
+      const newItem: AreaAssignmentRecord = {
         id,
         area: item.area,
         personName: item.personName,
@@ -473,7 +492,7 @@ export const db = {
             'UPDATE area_assignments SET area_name = COALESCE(?, area_name), person_name = COALESCE(?, person_name), phone = COALESCE(?, phone), telegram_username = COALESCE(?, telegram_username), telegram_chat_id = COALESCE(?, telegram_chat_id) WHERE id = ?',
             [item.area, item.personName, item.phone, item.telegram ? item.telegram.replace(/^@/, '') : undefined, chatId, id]
           );
-        } catch (e) {
+        } catch (e: unknown) {
           console.error('[DB error on assignments.update]', e);
         }
       }
@@ -498,7 +517,7 @@ export const db = {
       if (pool) {
         try {
           await pool.query('DELETE FROM area_assignments WHERE id = ?', [id]);
-        } catch (e) {
+        } catch (e: unknown) {
           console.error('[DB error on assignments.delete]', e);
         }
       }
@@ -513,10 +532,10 @@ export const db = {
       const pool = await getDbPool();
       if (pool) {
         try {
-          const [rows]: any = await pool.query(`
+          const [rows] = await pool.query<DbSiteRow[]>(`
             SELECT s.*, 
-                   a.person_name as handler_name, a.phone as handler_phone, 
-                   a.telegram_username as handler_telegram, a.telegram_chat_id as handler_chat_id, a.role as handler_role,
+                   a.person_name as area_handler_name, a.phone as area_handler_phone, 
+                   a.telegram_username as area_handler_telegram, a.telegram_chat_id as area_handler_chat_id, a.role as area_handler_role,
                    e.alarm_type as event_alarm_type, e.severity as event_severity,
                    e.duration_seconds
             FROM sites s
@@ -524,13 +543,23 @@ export const db = {
             LEFT JOIN downtime_events e ON e.site_id = s.id AND e.status = 'Active'
             ORDER BY s.status = 'Downtime' DESC, s.name ASC
           `);
-          const [deviceRows]: any = await pool.query(`
+          const [deviceRows] = await pool.query<DbDeviceRow[]>(`
             SELECT id, site_id, device_name, model, serial_number, mac_address, ip_address, device_type, status
             FROM devices
             ORDER BY device_type = 'Gateway' DESC, id ASC
-          `).catch(() => [[]]);
+          `).catch(() => [[] as DbDeviceRow[]]);
 
-          const devicesBySiteId = new Map<string, any[]>();
+          const devicesBySiteId = new Map<string, Array<{
+            id: string;
+            name: string;
+            model: string;
+            serialNumber: string;
+            macAddress: string;
+            ipAddress: string;
+            deviceType: string;
+            status: string;
+          }>>();
+
           if (Array.isArray(deviceRows)) {
             for (const d of deviceRows) {
               const arr = devicesBySiteId.get(d.site_id) || [];
@@ -553,13 +582,22 @@ export const db = {
             }
           }
 
-          return rows.map((r: any) => {
+          return rows.map((r: DbSiteRow) => {
             const durationMins = r.duration_seconds ? Math.round(r.duration_seconds / 60) : 0;
             const durationLabel = durationMins >= 60 
               ? `${Math.floor(durationMins / 60)}h ${String(durationMins % 60).padStart(2, '0')}m`
               : durationMins > 0 ? `${durationMins} mins` : undefined;
 
             const locDetails = parseSiteLocation(r.name, r.province);
+
+            const resolvedName = r.contact_person_name || r.area_handler_name || 'Unassigned';
+            const resolvedPhone = r.contact_person_phone || r.area_handler_phone || '+63 900 000 0000';
+            const resolvedSocial = r.contact_person_social || r.area_handler_telegram || '';
+            const resolvedRole = r.contact_person_role || r.area_handler_role || 'Designated Responder';
+            const cleanTelegram = resolvedSocial ? resolvedSocial.replace(/^[^:]+:/, '').replace(/^@/, '') : '';
+            const socialMedia = resolvedSocial 
+              ? (resolvedSocial.includes(':') ? resolvedSocial : `@${resolvedSocial.replace(/^@/, '')}`)
+              : '@noc_support';
 
             return {
               id: r.id,
@@ -587,15 +625,16 @@ export const db = {
               switchOffline: r.switch_offline !== null && r.switch_offline !== undefined ? Number(r.switch_offline) : 0,
               devices: devicesBySiteId.get(r.id) || [],
               assignedHandler: {
-                name: r.handler_name || 'Unassigned',
-                phone: r.handler_phone || '',
-                telegram: r.handler_telegram || '',
-                chatId: r.handler_chat_id || undefined,
-                role: r.handler_role || 'Unassigned',
+                name: resolvedName,
+                phone: resolvedPhone,
+                telegram: cleanTelegram,
+                chatId: r.area_handler_chat_id || undefined,
+                role: resolvedRole,
+                socialMedia: socialMedia,
               },
             };
           });
-        } catch (e) {
+        } catch (e: unknown) {
           console.error('[DB error on sites.getAll]', e);
         }
       }
@@ -604,29 +643,44 @@ export const db = {
 
     async updateHandler(siteName: string, handler: AssignedHandler) {
       const pool = await getDbPool();
+      const rawSocial = handler.socialMedia || (handler.telegram ? `@${handler.telegram.replace(/^@/, '')}` : '@noc_support');
+      const cleanPhone = handler.phone?.trim() || '+63 900 000 0000';
+      const cleanRole = handler.role || 'Designated Responder';
+      const personName = handler.name.trim();
+
       if (pool) {
         try {
-          // Find or create area assignment
-          const [areas]: any = await pool.query('SELECT id FROM area_assignments WHERE person_name = ? LIMIT 1', [handler.name]);
-          let handlerId = areas[0]?.id;
-          if (!handlerId) {
-            handlerId = `area-${Date.now()}`;
-            await pool.query(
-              'INSERT INTO area_assignments (id, area_name, person_name, phone, telegram_username, role) VALUES (?, ?, ?, ?, ?, ?)',
-              [handlerId, siteName, handler.name, handler.phone, handler.telegram, handler.role || 'Designated Area Responder']
-            );
-          }
-          await pool.query('UPDATE sites SET assigned_handler_id = ? WHERE name = ?', [handlerId, siteName]);
-        } catch (e) {
+          // Direct UPDATE on sites table dedicated columns
+          await pool.query(
+            `UPDATE sites 
+             SET contact_person_name = ?, 
+                 contact_person_phone = ?, 
+                 contact_person_social = ?, 
+                 contact_person_role = ?
+             WHERE name = ? OR code = ? OR id = ?`,
+            [personName, cleanPhone, rawSocial, cleanRole, siteName, siteName, siteName]
+          );
+        } catch (e: unknown) {
           console.error('[DB error on sites.updateHandler]', e);
         }
       }
 
-      memorySites = memorySites.map((s) => (s.name === siteName ? { ...s, assignedHandler: handler } : s));
+      // Keep in-memory store in sync as fallback
+      const siteMem = memorySites.find((s) => s.name === siteName || s.code === siteName || s.id === siteName);
+      if (siteMem) {
+        siteMem.assignedHandler = {
+          ...handler,
+          name: personName,
+          phone: cleanPhone,
+          socialMedia: rawSocial,
+          role: cleanRole,
+        };
+      }
       return true;
     },
 
-    async updateAreaHandler(areaId: string, areaName: string, handler: AssignedHandler) {
+    async updateAreaHandler(areaId: string, areaName: string, _handler: AssignedHandler) {
+      void _handler;
       const pool = await getDbPool();
       const norm = areaName.toLowerCase().replace(/\s+area$/i, '').trim();
       if (pool) {
@@ -635,18 +689,10 @@ export const db = {
             'UPDATE sites SET assigned_handler_id = ? WHERE LOWER(province) LIKE ? OR LOWER(name) LIKE ? OR LOWER(region) LIKE ?',
             [areaId, `%${norm}%`, `%${norm}%`, `%${norm}%`]
           );
-        } catch (e) {
+        } catch (e: unknown) {
           console.error('[DB error on sites.updateAreaHandler]', e);
         }
       }
-
-      memorySites = memorySites.map((s) => {
-        const p = (s.province || '').toLowerCase();
-        const r = (s.region || '').toLowerCase();
-        const n = (s.name || '').toLowerCase();
-        const matches = p === norm || p.includes(norm) || norm.includes(p) || r.includes(norm) || n.includes(norm);
-        return matches ? { ...s, assignedHandler: handler } : s;
-      });
       return true;
     },
   },
@@ -657,11 +703,11 @@ export const db = {
       const pool = await getDbPool();
       if (pool) {
         try {
-          const [rows]: any = await pool.query(
+          const [rows] = await pool.query<RowDataPacket[]>(
             'SELECT id, type, title, description, site_name as siteName, site_code as siteCode, person_name as personName, telegram_username as telegramUsername, severity, DATE_FORMAT(created_at, "%b %d, %Y %H:%i") as timestamp FROM activity_logs ORDER BY created_at DESC'
           );
-          return rows;
-        } catch (e) {
+          return rows as unknown as ActivityLog[];
+        } catch (e: unknown) {
           console.error('[DB error on logs.getAll]', e);
         }
       }
@@ -677,7 +723,7 @@ export const db = {
             'INSERT INTO activity_logs (id, type, title, description, site_name, site_code, person_name, telegram_username, severity) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
             [id, log.type, log.title, log.description, log.siteName || null, log.siteCode || null, log.personName || null, log.telegramUsername || null, log.severity || 'info']
           );
-        } catch (e) {
+        } catch (e: unknown) {
           console.error('[DB error on logs.add]', e);
         }
       }
@@ -692,7 +738,7 @@ export const db = {
       if (pool) {
         try {
           await pool.query('DELETE FROM activity_logs');
-        } catch (e) {
+        } catch (e: unknown) {
           console.error('[DB error on logs.clear]', e);
         }
       }
@@ -719,24 +765,24 @@ export const db = {
         try {
           let resolvedSiteId = data.siteId;
           if (!resolvedSiteId && data.siteName) {
-            const [matched]: any = await pool.query(
+            const [matched] = await pool.query<RowDataPacket[]>(
               'SELECT id FROM sites WHERE name = ? OR code = ? LIMIT 1',
               [data.siteName, data.siteName]
             );
             if (matched && matched[0]) {
-              resolvedSiteId = matched[0].id;
+              resolvedSiteId = matched[0].id as string;
             }
           }
           if (!resolvedSiteId) {
-            const [firstSite]: any = await pool.query('SELECT id FROM sites LIMIT 1');
-            resolvedSiteId = firstSite[0]?.id || 'site-ojt';
+            const [firstSite] = await pool.query<RowDataPacket[]>('SELECT id FROM sites LIMIT 1');
+            resolvedSiteId = (firstSite[0]?.id as string) || '';
           }
 
           await pool.query(
             'INSERT INTO telegram_dispatches (id, site_id, recipient_name, telegram_username, telegram_chat_id, message_body, status, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
             [id, resolvedSiteId, data.recipientName, data.telegramUsername, data.chatId || null, data.messageBody, data.status, data.notes || null]
           );
-        } catch (e) {
+        } catch (e: unknown) {
           console.error('[DB error on dispatches.log]', e);
         }
       }
@@ -749,20 +795,19 @@ export const db = {
 
   // 5. SYSTEM SETTINGS
   settings: {
-    async get() {
+    async get(): Promise<SystemSettings> {
       const pool = await getDbPool();
       if (pool) {
         try {
-          const [rows]: any = await pool.query('SELECT config_key, config_value FROM system_settings');
+          const [rows] = await pool.query<RowDataPacket[]>('SELECT config_key, config_value FROM system_settings');
           const map: Record<string, string> = {};
-          rows.forEach((r: any) => { map[r.config_key] = r.config_value; });
+          rows.forEach((r) => { map[r.config_key as string] = r.config_value as string; });
 
-          // Dynamically load active operator profile directly from MySQL users table
-          let dbUser = null;
+          let dbUser: { fullName?: string; email?: string; role?: string; username?: string } | null = null;
           try {
-            const [userRows]: any = await pool.query('SELECT full_name as fullName, email, role, username FROM users ORDER BY created_at ASC LIMIT 1');
+            const [userRows] = await pool.query<RowDataPacket[]>('SELECT full_name as fullName, email, role, username FROM users ORDER BY created_at ASC LIMIT 1');
             if (userRows && userRows.length > 0) {
-              dbUser = userRows[0];
+              dbUser = userRows[0] as unknown as { fullName?: string; email?: string; role?: string; username?: string };
             }
           } catch {}
 
@@ -798,18 +843,18 @@ export const db = {
               telegramUsername: dbUser?.username || memorySettings.account.telegramUsername,
             },
           };
-        } catch (e) {
+        } catch (e: unknown) {
           console.error('[DB error on settings.get]', e);
         }
       }
       return { ...memorySettings };
     },
 
-    async update(updated: any) {
+    async update(updated: Partial<SystemSettings>) {
       const pool = await getDbPool();
       if (pool) {
         try {
-          const queries = [
+          const queries: Array<[string, string | undefined]> = [
             ['general.language', updated.general?.language],
             ['general.timezone', updated.general?.timezone],
             ['account.fullName', updated.account?.fullName],
@@ -830,13 +875,12 @@ export const db = {
               );
             }
           }
-        } catch (e) {
+        } catch (e: unknown) {
           console.error('[DB error on settings.update]', e);
         }
       }
       memorySettings = { ...memorySettings, ...updated };
 
-      // Synchronize account profile changes with users collection
       if (updated.account) {
         await db.users.updateProfile('usr-01', {
           fullName: updated.account.fullName,
@@ -849,13 +893,13 @@ export const db = {
     },
   },
 
-  // 6. DOWNTIME INCIDENTS & ALARMS (Direct from downtime_events table in MySQL)
+  // 6. DOWNTIME INCIDENTS & ALARMS
   events: {
     async getActive() {
       const pool = await getDbPool();
       if (pool) {
         try {
-          const [rows]: any = await pool.query(`
+          const [rows] = await pool.query<DbEventRow[]>(`
             SELECT e.*, s.name as site_name, s.code as site_code, s.province,
                    a.person_name as handler_name, a.phone as handler_phone, a.telegram_username as handler_telegram
             FROM downtime_events e
@@ -864,7 +908,7 @@ export const db = {
             WHERE e.status = 'Active'
             ORDER BY e.duration_seconds DESC
           `);
-          return rows.map((r: any) => {
+          return rows.map((r: DbEventRow) => {
             const mins = Math.round(r.duration_seconds / 60);
             const timeStr = mins >= 60 ? `${Math.floor(mins / 60)}h ${mins % 60}m` : `${mins} mins`;
             return {
@@ -887,7 +931,7 @@ export const db = {
               status: r.status,
             };
           });
-        } catch (e) {
+        } catch (e: unknown) {
           console.error('[DB error on events.getActive]', e);
         }
       }

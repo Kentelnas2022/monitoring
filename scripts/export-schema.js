@@ -31,13 +31,15 @@ async function exportSql() {
     return `('${s.id}', '${s.name.replace(/'/g, "\\'")}', '${s.code}', '${s.region}', '${s.province}', '${s.status}', ${s.device_count}, ${s.offline_count}, ${s.online_count}, ${s.active_alarm_count}, ${alarmType}, ${severity}, ${dtStarted}, '${s.last_known_ip}', ${s.latitude}, ${s.longitude}, ${handler})`;
   }).join(',\n') + '\nON DUPLICATE KEY UPDATE `name`=VALUES(`name`);\n\n';
 
-  // 4. downtime_events (All 8)
+  // 4. downtime_events
   const [events] = await pool.query('SELECT * FROM downtime_events');
-  sql += '-- 4. Downtime Incidents & Alarms (Active Regional Outages)\nINSERT INTO `downtime_events` (`id`, `site_id`, `alarm_type`, `severity`, `status`, `generated_at`, `duration_seconds`, `affected_device_count`, `offline_device_count`, `last_known_ip`, `assigned_handler_id`) VALUES\n';
-  sql += events.map(e => {
-    const handler = e.assigned_handler_id ? `'${e.assigned_handler_id}'` : 'NULL';
-    return `('${e.id}', '${e.site_id}', '${e.alarm_type}', '${e.severity}', '${e.status}', NOW() - INTERVAL ${e.duration_seconds} SECOND, ${e.duration_seconds}, ${e.affected_device_count}, ${e.offline_device_count}, '${e.last_known_ip}', ${handler})`;
-  }).join(',\n') + '\nON DUPLICATE KEY UPDATE `alarm_type`=VALUES(`alarm_type`);\n\n';
+  if (events.length > 0) {
+    sql += '-- 4. Downtime Incidents & Alarms (Active Regional Outages)\nINSERT INTO `downtime_events` (`id`, `site_id`, `alarm_type`, `severity`, `status`, `generated_at`, `duration_seconds`, `affected_device_count`, `offline_device_count`, `last_known_ip`, `assigned_handler_id`) VALUES\n';
+    sql += events.map(e => {
+      const handler = e.assigned_handler_id ? `'${e.assigned_handler_id}'` : 'NULL';
+      return `('${e.id}', '${e.site_id}', '${e.alarm_type}', '${e.severity}', '${e.status}', NOW() - INTERVAL ${e.duration_seconds} SECOND, ${e.duration_seconds}, ${e.affected_device_count}, ${e.offline_device_count}, '${e.last_known_ip}', ${handler})`;
+    }).join(',\n') + '\nON DUPLICATE KEY UPDATE `alarm_type`=VALUES(`alarm_type`);\n\n';
+  }
 
   // 5. devices
   const [devices] = await pool.query('SELECT * FROM devices');

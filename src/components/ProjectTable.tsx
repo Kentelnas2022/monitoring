@@ -3,10 +3,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
   Search, 
-  MapPin, 
-  CheckCircle2, 
-  Globe, 
-  Wifi,
   WifiOff, 
   ChevronRight, 
   ChevronLeft,
@@ -35,6 +31,9 @@ interface ProjectTableProps {
   lastSyncedAt?: string | null;
   onToggleTestOutage?: () => void;
   isTestOutage?: boolean;
+  showMap?: boolean;
+  onOpenMonitoring?: () => void;
+  hideTestButton?: boolean;
 }
 
 export const ProjectTable: React.FC<ProjectTableProps> = ({
@@ -44,14 +43,14 @@ export const ProjectTable: React.FC<ProjectTableProps> = ({
   selectedSiteId,
   alertingSiteId,
   isTvMode = false,
-  onToggleTvMode,
   statusFilter: controlledStatusFilter,
   onStatusFilterChange,
-  onRefresh,
   isRefreshing = false,
-  lastSyncedAt,
   onToggleTestOutage,
   isTestOutage = false,
+  showMap = false,
+  onOpenMonitoring,
+  hideTestButton = false,
 }) => {
   const [internalStatusFilter, setInternalStatusFilter] = useState<TableStatusFilter>('All');
   const statusFilter = controlledStatusFilter !== undefined ? controlledStatusFilter : internalStatusFilter;
@@ -108,8 +107,7 @@ export const ProjectTable: React.FC<ProjectTableProps> = ({
     prevAllOfflineCountRef.current = allOfflineCount;
   }, [sites, statusFilter]);
 
-  // Filtered and Sorted Sites:
-  // Priority order: All Offline (1) -> Offline / Partial (2) -> Online (3)
+  // Filtered and Sorted Sites
   const sortedAndFilteredSites = useMemo(() => {
     const filtered = sites.filter((s) => {
       const isAllOffline = s.offlineCount === s.deviceCount && s.deviceCount > 0;
@@ -127,9 +125,15 @@ export const ProjectTable: React.FC<ProjectTableProps> = ({
 
       const matchesProvince = selectedProvince === 'All' ? true : s.province === selectedProvince;
       const q = searchQuery.toLowerCase();
+      const dev = s.devices?.[0];
+      const modelStr = (dev?.model || (s.code === 'RJ-9588688' || s.name === 'OJT' ? 'EW1200' : '')).toLowerCase();
+      const snStr = (dev?.serialNumber || (s.code === 'RJ-9588688' || s.name === 'OJT' ? 'G1QH3N710075C' : '')).toLowerCase();
+
       const matchesQuery =
         s.name.toLowerCase().includes(q) ||
         s.code.toLowerCase().includes(q) ||
+        modelStr.includes(q) ||
+        snStr.includes(q) ||
         (s.municipality && s.municipality.toLowerCase().includes(q)) ||
         (s.landmark && s.landmark.toLowerCase().includes(q)) ||
         s.assignedHandler.name.toLowerCase().includes(q) ||
@@ -164,340 +168,299 @@ export const ProjectTable: React.FC<ProjectTableProps> = ({
   const startItem = sortedAndFilteredSites.length === 0 ? 0 : (currentPage - 1) * rowsPerPage + 1;
   const endItem = Math.min(currentPage * rowsPerPage, sortedAndFilteredSites.length);
 
-  // Generate pagination page numbers window
+  // Generate pagination page numbers window (never long, truncated with ellipsis when totalPages > 5)
   const pageNumbers = useMemo(() => {
-    const pages: number[] = [];
-    const maxVisible = 5;
-    let start = Math.max(1, currentPage - 2);
-    let end = Math.min(totalPages, start + maxVisible - 1);
+    if (totalPages <= 5) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    }
+    const pages: (number | string)[] = [1];
+    let start = Math.max(2, currentPage - 1);
+    let end = Math.min(totalPages - 1, currentPage + 1);
 
-    if (end - start < maxVisible - 1) {
-      start = Math.max(1, end - maxVisible + 1);
+    if (currentPage <= 3) {
+      start = 2;
+      end = Math.min(totalPages - 1, 4);
+    } else if (currentPage >= totalPages - 2) {
+      start = Math.max(2, totalPages - 3);
+      end = totalPages - 1;
     }
 
-    for (let i = start; i <= end; i++) {
-      pages.push(i);
-    }
+    if (start > 2) pages.push('...');
+    for (let i = start; i <= end; i++) pages.push(i);
+    if (end < totalPages - 1) pages.push('...');
+    pages.push(totalPages);
     return pages;
   }, [currentPage, totalPages]);
 
-  // SPLIT LAYOUT: ALIGNED WITH TOP CARDS (LEFT 50% UNDER CARDS 1-2, RIGHT 50% UNDER CARDS 3-4)
-  return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5 sm:gap-4 items-stretch h-full flex-1 min-h-0">
-      {/* LEFT SIDE: MINDANAO, PHILIPPINES TOPOLOGY MAP (ALIGNED WITH TOTAL PROJECTS & ONLINE DEVICES) */}
-      <div className="flex flex-col h-full min-h-0">
-        <MindanaoMap
-          sites={sortedAndFilteredSites}
-          onSelectSite={onSelectSite}
-          onOpenSiteDetails={onOpenSiteDetails}
-          selectedSiteId={selectedSiteId}
-          alertingSiteId={alertingSiteId}
-          isTvMode={isTvMode}
-        />
-      </div>
-
-      {/* RIGHT SIDE: FILTER CONTROLS & 4-COLUMN PROJECTS TABLE (ALIGNED WITH OFFLINE DOWN SITES & OFFLINE DEVICES) */}
-      <div className="flex flex-col h-full min-h-0 space-y-2.5">
-        {/* Top Filter and Controls Bar - Clean, Single Row with Space-Between */}
-        <div className="rounded-2xl border border-zinc-200 bg-white p-2.5 sm:px-3.5 sm:py-2.5 shadow-xs shrink-0">
-          <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3">
-            {/* Left: Status Selector - Identical to All Provinces, shows real-time device counts */}
-            <div className="flex items-center gap-2">
-              <select
-                value={statusFilter}
-                onChange={(e) => handleStatusChange(e.target.value as TableStatusFilter)}
-                className="h-9 w-40 sm:w-48 rounded-xl border border-zinc-200 bg-white px-2.5 sm:px-3 text-xs sm:text-sm font-semibold text-zinc-700 focus:border-[#237227] focus:outline-none cursor-pointer shrink-0 shadow-2xs"
-              >
-                <option value="All">All Projects ({counts.all})</option>
-                <option value="All Offline">All Offline ({counts.allOffline})</option>
-                <option value="Offline">Offline ({counts.offline})</option>
-                <option value="Online">Online ({counts.online} • {counts.onlineDevices} devs)</option>
-              </select>
-            </div>
-
-            {/* Right: Search & Province Selector & Live Sync Button */}
-            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-              {/* Search Input */}
-              <div className="relative w-36 sm:w-40 lg:w-40 xl:w-44">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-400 pointer-events-none" />
-                <input
-                  type="text"
-                  placeholder="Search projects..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full h-9 rounded-xl border border-zinc-200 bg-white pl-8 pr-2.5 text-xs sm:text-sm text-zinc-900 placeholder-zinc-400 focus:border-[#237227] focus:outline-none focus:ring-1 focus:ring-[#237227] shadow-2xs"
-                />
-              </div>
-
-              {/* Province Selector */}
-              <select
-                value={selectedProvince}
-                onChange={(e) => setSelectedProvince(e.target.value)}
-                className="h-9 w-32 sm:w-36 rounded-xl border border-zinc-200 bg-white px-2.5 sm:px-3 text-xs sm:text-sm font-semibold text-zinc-700 focus:border-[#237227] focus:outline-none cursor-pointer shrink-0 shadow-2xs"
-              >
-                {provinces.map((prov) => (
-                  <option key={prov} value={prov}>
-                    {prov === 'All' ? 'All Provinces' : prov}
-                  </option>
-                ))}
-              </select>
-
-              {/* Test 1 Site Down Simulation Button */}
-              {onToggleTestOutage && (
-                <button
-                  type="button"
-                  onClick={onToggleTestOutage}
-                  title={isTestOutage ? 'Click to restore test site back to online' : 'Simulate 1 site going All Offline to test downtime siren & table status'}
-                  className={`h-9 px-2.5 sm:px-3 rounded-xl border flex items-center gap-1.5 text-xs sm:text-sm font-semibold transition-all cursor-pointer shadow-2xs shrink-0 ${
-                    isTestOutage
-                      ? 'border-rose-300 bg-rose-50 text-rose-700 hover:bg-rose-100 ring-2 ring-rose-300/40 animate-pulse'
-                      : 'border-zinc-200 bg-white hover:bg-zinc-50 text-zinc-700 hover:border-amber-400 hover:text-amber-700'
-                  }`}
-                >
-                  <AlertTriangle className={`h-3.5 w-3.5 ${isTestOutage ? 'text-rose-600' : 'text-amber-500'}`} />
-                  <span className="hidden sm:inline">{isTestOutage ? 'Restore Online' : 'Test Site Down'}</span>
-                </button>
-              )}
-            </div>
-          </div>
+  const renderTableCard = () => (
+    <div className="flex flex-col h-full min-h-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xs justify-between" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
+      {/* 1. Unified Seamless Header Bar (Title + Controls in 1 single line) */}
+      <div className="border-b border-slate-100 bg-white px-4 py-3 shrink-0 flex flex-wrap items-center justify-between gap-3">
+        {/* Title */}
+        <div className="flex items-center gap-2">
+          <h2 className="text-sm sm:text-base font-semibold text-slate-900 tracking-tight">Ruijie Cloud Synced Sites</h2>
+          <span className="text-xs font-normal text-slate-500">
+            ({counts.all})
+          </span>
         </div>
 
-        {/* RIGHT SIDE: BALANCED 4-COLUMN MASTER PROJECTS TABLE */}
-        <div className="flex-1 min-h-0 flex flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-xs justify-between">
-          <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0 flex flex-col">
-            <table className={`w-full table-fixed text-left text-zinc-700 ${isTvMode ? 'text-base' : 'text-sm'}`}>
-              <colgroup>
-                <col className="w-[105px] sm:w-[110px]" />
-                <col className="w-[43%]" />
-                <col className="w-[23%]" />
-                <col className="w-[34%]" />
-              </colgroup>
-              <thead className="border-b border-zinc-200 bg-zinc-50 text-[10px] uppercase tracking-wider text-zinc-500 font-bold sticky top-0 z-10 shadow-2xs">
-                <tr>
-                  <th scope="col" className="py-2 pl-3 pr-2 font-bold whitespace-nowrap">
-                    Status
-                  </th>
-                  <th scope="col" className="px-2.5 py-2 font-bold">
-                    Project Name
-                  </th>
-                  <th scope="col" className="px-2.5 py-2 font-bold">
-                    Location
-                  </th>
-                  <th scope="col" className="px-2.5 py-2 font-bold text-left">
-                    IP / Device Health
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-100">
-                {paginatedSites.length === 0 ? (
-                  <tr>
-                    <td colSpan={4} className="py-12 text-center">
-                      {isRefreshing ? (
-                        <div className="flex flex-col items-center justify-center">
-                          <RefreshCw className="h-7 w-7 text-[#237227] animate-spin mb-3" />
-                          <h3 className="text-sm font-semibold text-zinc-900">Loading realtime telemetry...</h3>
-                          <p className="mt-1 text-xs text-zinc-500">
-                            Auto-syncing projects from Ruijie Cloud Open API.
-                          </p>
-                        </div>
-                      ) : (
-                        <div>
-                          <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-zinc-100 text-zinc-400">
-                            <WifiOff className="h-5 w-5" />
-                          </div>
-                          <h3 className="mt-2.5 text-sm font-semibold text-zinc-900">No matching projects found</h3>
-                          <p className="mt-1 text-xs text-zinc-500">
-                            Try adjusting your search query or province filter.
-                          </p>
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                ) : (
-                  paginatedSites.map((site) => {
-                    const isAllOffline = site.offlineCount === site.deviceCount && site.deviceCount > 0;
-                    const isPartialOffline = site.offlineCount > 0 && site.offlineCount < site.deviceCount;
-                    const isOnline = site.offlineCount === 0;
-
-                    return (
-                      <tr
-                        key={site.id}
-                        onClick={() => onSelectSite(site)}
-                        className={`group transition-colors duration-75 cursor-pointer ${
-                          isAllOffline
-                            ? 'bg-rose-50/25 hover:bg-rose-50/45'
-                            : isPartialOffline
-                            ? 'bg-amber-50/20 hover:bg-amber-50/40'
-                            : 'hover:bg-zinc-50'
-                        }`}
-                      >
-                        {/* 1. STATUS: Snug, clean badge with zero wasted space */}
-                        <td className="py-1.5 pl-3 pr-2 whitespace-nowrap align-middle">
-                          {isAllOffline && (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-rose-100/90 px-2 py-0.5 text-[10px] font-bold text-rose-700 shadow-2xs">
-                              <span className="relative flex h-1.5 w-1.5">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-                                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-rose-500"></span>
-                              </span>
-                              <span>All Offline</span>
-                            </span>
-                          )}
-                          {isPartialOffline && (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-amber-100/90 px-2 py-0.5 text-[10px] font-bold text-amber-800 shadow-2xs">
-                              <span className="relative flex h-1.5 w-1.5">
-                                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-500"></span>
-                              </span>
-                              <span>Offline</span>
-                            </span>
-                          )}
-                          {isOnline && (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-[#237227] border border-emerald-200/50 shadow-2xs">
-                              <CheckCircle2 className="h-3 w-3" />
-                              <span>Online</span>
-                            </span>
-                          )}
-                        </td>
-
-                        {/* 2. PROJECT NAME */}
-                        <td className="px-2.5 py-1.5 overflow-hidden align-middle">
-                          <div className="flex flex-col min-w-0">
-                            <span className={`font-bold text-zinc-900 group-hover:text-[#237227] transition-colors duration-75 leading-snug truncate ${
-                              isTvMode ? 'text-lg' : 'text-xs sm:text-sm'
-                            }`} title={site.name}>
-                              {site.name}
-                            </span>
-                            <span className="text-[10px] font-mono font-medium text-zinc-400">
-                              {site.code}
-                            </span>
-                          </div>
-                        </td>
-
-                        {/* 3. LOCATION */}
-                        <td className="px-2.5 py-1.5 overflow-hidden align-middle">
-                          <div className="flex items-center gap-1 text-zinc-700 min-w-0">
-                            <MapPin className="h-3.5 w-3.5 text-[#237227] shrink-0" />
-                            <div className="flex flex-col min-w-0">
-                              <span 
-                                className={`font-bold truncate text-zinc-900 leading-tight ${
-                                  isTvMode ? 'text-base' : 'text-xs'
-                                }`} 
-                                title={`${site.landmark ? site.landmark + ' • ' : ''}${site.municipality || site.province}, ${site.province}`}
-                              >
-                                {site.municipality || site.province}
-                              </span>
-                              <span 
-                                className="text-[10px] font-medium text-zinc-500 truncate" 
-                                title={site.landmark ? `${site.landmark} • ${site.province}` : site.province}
-                              >
-                                {site.landmark ? `${site.landmark} • ` : ''}{site.province}
-                              </span>
-                            </div>
-                          </div>
-                        </td>
-
-                        {/* 4. IP & OFFLINE HEALTH */}
-                        <td className="px-2.5 py-1.5 whitespace-nowrap overflow-hidden align-middle text-left">
-                          <div className="flex flex-col items-start min-w-0">
-                            <div className="flex items-center gap-1 font-mono text-zinc-800 font-bold">
-                              <Globe className="h-3.5 w-3.5 text-zinc-400 shrink-0" />
-                              <span className={isTvMode ? 'text-base font-bold' : 'text-xs'}>{site.lastKnownIp}</span>
-                            </div>
-
-                            {/* Granular AP & Device Health status */}
-                            {isAllOffline && (
-                              <div className="flex items-center gap-1 mt-0.5 flex-wrap">
-                                {(site.apCount || 0) > 0 && (
-                                  <span className={`inline-flex items-center px-1 py-0.5 rounded font-bold bg-rose-100 text-rose-800 border border-rose-200/60 ${
-                                    isTvMode ? 'text-sm' : 'text-[10px]'
-                                  }`}>
-                                    {site.apOffline || site.apCount}/{site.apCount} AP down
-                                  </span>
-                                )}
-                                {(site.gatewayCount || 0) > 0 && (
-                                  <span className={`inline-flex items-center px-1 py-0.5 rounded font-bold bg-rose-100 text-rose-800 border border-rose-200/60 ${
-                                    isTvMode ? 'text-sm' : 'text-[10px]'
-                                  }`}>
-                                    {site.gatewayOffline || site.gatewayCount}/{site.gatewayCount} GW down
-                                  </span>
-                                )}
-                                {(site.apCount || 0) === 0 && (site.gatewayCount || 0) === 0 && (
-                                  <span className={`font-semibold text-rose-600 truncate ${
-                                    isTvMode ? 'text-sm' : 'text-[10px]'
-                                  }`}>
-                                    {site.offlineCount}/{site.deviceCount} down
-                                  </span>
-                                )}
-                              </div>
-                            )}
-                            {isPartialOffline && (
-                              <div className="flex items-center gap-1 mt-0.5 flex-wrap">
-                                {(site.apCount || 0) > 0 && (
-                                  <span className={`inline-flex items-center px-1 py-0.5 rounded font-bold ${
-                                    (site.apOffline || 0) > 0 
-                                      ? 'bg-amber-100 text-amber-800 border border-amber-200/60' 
-                                      : 'bg-emerald-50 text-emerald-700 border border-emerald-200/60'
-                                  } ${isTvMode ? 'text-sm' : 'text-[10px]'}`}>
-                                    {(site.apOffline || 0) > 0 ? `${site.apOffline}/${site.apCount} AP down` : `${site.apCount} AP ok`}
-                                  </span>
-                                )}
-                                {(site.gatewayCount || 0) > 0 && (
-                                  <span className={`inline-flex items-center px-1 py-0.5 rounded font-bold ${
-                                    (site.gatewayOffline || 0) > 0 
-                                      ? 'bg-rose-100 text-rose-800 border border-rose-200/60' 
-                                      : 'bg-emerald-50 text-emerald-700 border border-emerald-200/60'
-                                  } ${isTvMode ? 'text-sm' : 'text-[10px]'}`}>
-                                    {(site.gatewayOffline || 0) > 0 ? `${site.gatewayOffline}/${site.gatewayCount} GW down` : `${site.gatewayCount} GW ok`}
-                                  </span>
-                                )}
-                                {(site.apCount || 0) === 0 && (site.gatewayCount || 0) === 0 && (
-                                  <span className={`font-semibold text-amber-700 truncate ${
-                                    isTvMode ? 'text-sm' : 'text-[10px]'
-                                  }`}>
-                                    {site.offlineCount}/{site.deviceCount} down
-                                  </span>
-                                )}
-                              </div>
-                            )}
-                            {isOnline && (
-                              <div className="flex items-center gap-1 mt-0.5 flex-wrap">
-                                <span className={`font-medium text-zinc-500 truncate ${
-                                  isTvMode ? 'text-sm' : 'text-[10px]'
-                                }`}>
-                                  {site.onlineCount}/{site.deviceCount} Online
-                                </span>
-                                {(site.apCount || 0) > 0 && (
-                                  <span className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/50">
-                                    <Wifi className="h-2.5 w-2.5" />
-                                    <span>{site.apCount} APs healthy</span>
-                                  </span>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
+        {/* Controls Flow: 1. Search -> 2. Status Dropdown -> 3. Provinces -> 4. Live Map */}
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          {/* 1. SEARCH INPUT */}
+          <div className="relative w-36 sm:w-44">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Search..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full h-8.5 rounded-xl border border-slate-200 bg-slate-50/60 pl-8 pr-2.5 text-xs font-medium text-slate-800 placeholder-slate-400 hover:border-slate-300 focus:border-slate-400 focus:bg-white focus:outline-none transition-colors"
+              style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}
+            />
           </div>
 
+          {/* 2. STATUS FILTER DROPDOWN (All, Online, Offline, All Offline) */}
+          <select
+            value={statusFilter}
+            onChange={(e) => handleStatusChange(e.target.value as TableStatusFilter)}
+            className="h-8.5 rounded-xl border border-slate-200 bg-slate-50/60 px-2.5 text-xs font-semibold text-slate-800 hover:border-slate-300 focus:border-slate-400 focus:bg-white focus:outline-none cursor-pointer shrink-0 transition-colors"
+            style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}
+          >
+            <option value="All">All ({counts.all})</option>
+            <option value="Online">Online ({counts.online})</option>
+            <option value="Offline">Offline ({counts.offline})</option>
+            <option value="All Offline">All Offline ({counts.allOffline})</option>
+          </select>
+
+          {/* 3. PROVINCES SELECTOR */}
+          <select
+            value={selectedProvince}
+            onChange={(e) => setSelectedProvince(e.target.value)}
+            className="h-8.5 rounded-xl border border-slate-200 bg-slate-50/60 px-2.5 text-xs font-semibold text-slate-800 hover:border-slate-300 focus:border-slate-400 focus:bg-white focus:outline-none cursor-pointer shrink-0 transition-colors"
+            style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}
+          >
+            {provinces.map((prov) => (
+              <option key={prov} value={prov}>
+                {prov === 'All' ? 'All Provinces' : prov}
+              </option>
+            ))}
+          </select>
+
+          {/* 4. LIVE MAP BUTTON */}
+          {onOpenMonitoring && (
+            <button
+              type="button"
+              onClick={onOpenMonitoring}
+              title="Open Live Map Monitoring Page"
+              className="h-8.5 px-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-800 flex items-center gap-1 text-xs font-semibold shadow-2xs transition-all cursor-pointer shrink-0"
+              style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}
+            >
+              <span>Live Map</span>
+            </button>
+          )}
+
+          {!hideTestButton && onToggleTestOutage && (
+            <button
+              type="button"
+              onClick={onToggleTestOutage}
+              title={isTestOutage ? 'Click to restore test site back to online' : 'Simulate 1 site going All Offline'}
+              className={`h-8.5 px-2.5 rounded-xl border flex items-center gap-1 text-xs font-semibold transition-all cursor-pointer shadow-2xs shrink-0 ${
+                isTestOutage
+                  ? 'border-rose-300 bg-rose-50 text-rose-700 hover:bg-rose-100 ring-2 ring-rose-300/40 animate-pulse'
+                  : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-800'
+              }`}
+              style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}
+            >
+              <AlertTriangle className={`h-3.5 w-3.5 ${isTestOutage ? 'text-rose-600' : 'text-amber-500'}`} />
+              <span>{isTestOutage ? 'Restore' : 'Test Down'}</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Scrollable Table Area */}
+        <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0 flex flex-col">
+          <table className={`w-full table-fixed text-left text-slate-800 ${isTvMode ? 'text-lg' : 'text-base'}`} style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
+            <colgroup>
+              <col className="w-1/6" />
+              <col className="w-1/6" />
+              <col className="w-1/6" />
+              <col className="w-1/6" />
+              <col className="w-1/6" />
+              <col className="w-1/6" />
+            </colgroup>
+            <thead className="border-b border-slate-200 bg-slate-50/80 text-xs uppercase tracking-wider text-slate-500 font-bold sticky top-0 z-10">
+              <tr>
+                <th scope="col" className="py-3.5 pl-5 pr-3 font-bold text-left">
+                  PROJECT NAME
+                </th>
+                <th scope="col" className="py-3.5 px-3 font-bold text-left">
+                  LOCATION
+                </th>
+                <th scope="col" className="py-3.5 px-3 font-bold text-left">
+                  MODEL
+                </th>
+                <th scope="col" className="py-3.5 px-3 font-bold text-left">
+                  DEVICE SN
+                </th>
+                <th scope="col" className="py-3.5 px-3 font-bold text-center">
+                  AP / DEVICE
+                </th>
+                <th scope="col" className="py-3.5 px-3 font-bold text-center">
+                  DOWNTIME
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200/60">
+              {paginatedSites.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-16 text-center">
+                    {isRefreshing ? (
+                      <div className="flex flex-col items-center justify-center">
+                        <RefreshCw className="h-8 w-8 text-[#237227] animate-spin mb-3" />
+                        <h3 className="text-base font-bold text-slate-800">Loading telemetry data...</h3>
+                        <p className="mt-1 text-sm text-slate-500">
+                          Auto-syncing projects from cloud telemetry.
+                        </p>
+                      </div>
+                    ) : (
+                      <div>
+                        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
+                          <WifiOff className="h-6 w-6" />
+                        </div>
+                        <h3 className="mt-3 text-base font-bold text-slate-800">No matching projects found</h3>
+                        <p className="mt-1 text-sm text-slate-500">
+                          Try adjusting your search query or province filter.
+                        </p>
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              ) : (
+                paginatedSites.map((site) => {
+                  const isAllOffline = site.offlineCount === site.deviceCount && site.deviceCount > 0;
+                  const isPartialOffline = site.offlineCount > 0 && site.offlineCount < site.deviceCount;
+
+                  const totalAps = site.apCount || site.deviceCount || 1;
+                  const offlineAps = site.apOffline !== undefined ? site.apOffline : (isAllOffline ? totalAps : site.offlineCount);
+                  const onlineAps = Math.max(0, totalAps - offlineAps);
+
+                  const dev = site.devices?.[0];
+                  const modelDisplay = dev?.model || (site.code === 'RJ-9588688' || site.name === 'OJT' ? 'EW1200' : (site.devices && site.devices.length > 0 ? site.devices.map(d => d.model).join(', ') : 'N/A'));
+                  const deviceSnDisplay = dev?.serialNumber || (site.code === 'RJ-9588688' || site.name === 'OJT' ? 'G1QH3N710075C' : (site.devices && site.devices.length > 0 ? site.devices.map(d => d.serialNumber).join(', ') : 'N/A'));
+                  const deviceTypeDisplay = dev?.deviceType || (dev?.model?.startsWith('RG-RAP') ? 'Access Point' : dev?.model?.startsWith('RG-EG') || dev?.model?.includes('EW') ? 'Gateway Router' : 'Hardware Device');
+
+                  return (
+                    <tr
+                      key={site.id}
+                      onClick={() => onSelectSite(site)}
+                      className="bg-white hover:bg-slate-100 transition-colors duration-150 cursor-pointer border-b border-slate-100"
+                      style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}
+                    >
+                      {/* 1. PROJECT NAME */}
+                      <td className="py-3 pl-5 pr-3 overflow-hidden align-middle">
+                        <div className="flex flex-col min-w-0">
+                          <span className={`font-semibold text-slate-900 leading-snug truncate ${
+                            isTvMode ? 'text-xl' : 'text-sm sm:text-base'
+                          }`} title={site.name}>
+                            {site.name}
+                          </span>
+                          <span className="text-xs text-slate-500 mt-0.5 font-normal">
+                            {site.code}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* 2. LOCATION */}
+                      <td className="px-3 py-3 overflow-hidden align-middle">
+                        <div className="flex flex-col min-w-0">
+                          <span 
+                            className={`font-normal truncate text-slate-900 leading-tight ${
+                              isTvMode ? 'text-lg' : 'text-sm'
+                            }`} 
+                            title={`${site.landmark ? site.landmark + ' • ' : ''}${site.municipality || site.province}, ${site.province}`}
+                          >
+                            {site.municipality || site.province}
+                          </span>
+                          <span 
+                            className="text-xs text-slate-500 truncate mt-0.5 font-normal" 
+                            title={site.landmark ? `${site.landmark} • ${site.province}` : site.province}
+                          >
+                            {site.landmark ? `${site.landmark} • ` : ''}{site.province}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* 3. MODEL */}
+                      <td className="px-3 py-3 overflow-hidden align-middle">
+                        <div className="flex flex-col min-w-0">
+                          <span className={`font-semibold text-slate-900 leading-tight truncate ${
+                            isTvMode ? 'text-lg' : 'text-sm'
+                          }`} title={modelDisplay}>
+                            {modelDisplay}
+                          </span>
+                          <span className="text-xs text-slate-500 mt-0.5 font-normal truncate">
+                            {deviceTypeDisplay}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* 4. DEVICE SN */}
+                      <td className="px-3 py-3 overflow-hidden align-middle">
+                        <div className="flex flex-col min-w-0">
+                          <span className={`font-mono font-semibold text-slate-900 leading-tight truncate ${
+                            isTvMode ? 'text-lg' : 'text-sm'
+                          }`} title={deviceSnDisplay}>
+                            {deviceSnDisplay}
+                          </span>
+                          <span className="text-xs text-slate-500 mt-0.5 font-normal truncate">
+                            {site.lastKnownIp || 'Hardware SN'}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* 5. AP / DEVICE */}
+                      <td className="px-3 py-3 whitespace-nowrap align-middle text-center">
+                        <span className="font-semibold text-slate-900 text-sm sm:text-base">
+                          {isAllOffline ? `0/${totalAps} Online` : `${onlineAps}/${totalAps} Online`}
+                        </span>
+                      </td>
+
+                      {/* 6. DOWNTIME */}
+                      <td className="px-3 py-3 whitespace-nowrap align-middle text-center">
+                        {isAllOffline || isPartialOffline || site.status === 'Downtime' ? (
+                          <span className="font-semibold text-rose-700 text-sm sm:text-base">
+                            {site.downtimeDuration || 'Active'}
+                          </span>
+                        ) : (
+                          <span className="text-[#237227] font-semibold text-sm sm:text-base">
+                            Online
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+
           {/* PAGINATION CONTROLS FOOTER */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-t border-zinc-200 bg-zinc-50/70 px-3.5 py-2 text-xs text-zinc-600 shrink-0">
-            {/* Left: Summary and Rows per Page */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-slate-100 bg-white px-4 py-3 text-xs text-slate-600 shrink-0" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
+            {/* Left: Summary & Rows Selector */}
             <div className="flex flex-wrap items-center gap-3">
-              <span className="font-medium text-zinc-700">
-                <strong className="text-zinc-900 font-bold">{startItem}</strong>–<strong className="text-zinc-900 font-bold">{endItem}</strong> of <strong className="text-zinc-900 font-bold">{sortedAndFilteredSites.length}</strong>
+              <span className="font-normal text-slate-600">
+                Showing <strong className="text-slate-900 font-semibold">{startItem}</strong>–<strong className="text-slate-900 font-semibold">{endItem}</strong> of <strong className="text-slate-900 font-semibold">{sortedAndFilteredSites.length}</strong>
               </span>
 
-              {/* Rows Per Page Dropdown */}
-              <div className="flex items-center gap-1.5">
-                <span className="text-zinc-400 text-xs">Rows:</span>
+              <div className="flex items-center gap-1.5 border-l border-slate-200 pl-3">
+                <span className="text-slate-500 text-xs font-normal">Rows:</span>
                 <select
                   value={rowsPerPage}
                   onChange={(e) => setRowsPerPage(Number(e.target.value))}
-                  className="rounded-lg border border-zinc-200 bg-white px-2.5 py-1 text-xs sm:text-sm font-semibold text-zinc-800 focus:border-[#237227] focus:outline-none cursor-pointer"
+                  className="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-xs font-semibold text-slate-800 hover:border-slate-300 focus:border-slate-400 focus:outline-none cursor-pointer"
+                  style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}
                 >
                   <option value={8}>8</option>
                   <option value={10}>10</option>
@@ -508,64 +471,81 @@ export const ProjectTable: React.FC<ProjectTableProps> = ({
               </div>
             </div>
 
-            {/* Right: Page Navigation Buttons */}
+            {/* Right: Modern Prev/Next Page Navigation */}
             <div className="flex items-center gap-1.5">
-              <button
-                onClick={() => setCurrentPage(1)}
-                disabled={currentPage === 1}
-                className="rounded-lg border border-zinc-200 bg-white p-1.5 text-zinc-600 hover:bg-zinc-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-75 cursor-pointer"
-                title="First Page"
-              >
-                <ChevronsLeft className="h-4 w-4" />
-              </button>
-
               <button
                 onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
                 disabled={currentPage === 1}
-                className="rounded-lg border border-zinc-200 bg-white p-1.5 text-zinc-600 hover:bg-zinc-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-75 cursor-pointer"
+                className="h-8 px-2.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer flex items-center gap-1 text-xs font-semibold"
                 title="Previous Page"
               >
-                <ChevronLeft className="h-4 w-4" />
+                <ChevronLeft className="h-3.5 w-3.5" />
+                <span>Prev</span>
               </button>
 
               {/* Page Number Buttons */}
-              <div className="flex items-center gap-1 px-0.5">
-                {pageNumbers.map((pageNum) => (
-                  <button
-                    key={pageNum}
-                    onClick={() => setCurrentPage(pageNum)}
-                    className={`min-w-[32px] h-8 rounded-lg text-xs sm:text-sm font-bold transition-colors duration-75 cursor-pointer ${
-                      currentPage === pageNum
-                        ? 'bg-[#237227] text-white shadow-xs'
-                        : 'border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-100'
-                    }`}
-                  >
-                    {pageNum}
-                  </button>
+              <div className="flex items-center gap-1 px-1">
+                {pageNumbers.map((pageNum, idx) => (
+                  typeof pageNum === 'number' ? (
+                    <button
+                      key={idx}
+                      onClick={() => setCurrentPage(pageNum)}
+                      className={`min-w-[32px] h-8 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                        currentPage === pageNum
+                          ? 'bg-[#237227] text-white shadow-2xs'
+                          : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                      }`}
+                      style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}
+                    >
+                      {pageNum}
+                    </button>
+                  ) : (
+                    <span key={idx} className="px-1 text-xs text-slate-400 font-semibold">
+                      ...
+                    </span>
+                  )
                 ))}
               </div>
 
               <button
                 onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
                 disabled={currentPage === totalPages}
-                className="rounded-lg border border-zinc-200 bg-white p-1.5 text-zinc-600 hover:bg-zinc-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-75 cursor-pointer"
+                className="h-8 px-2.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer flex items-center gap-1 text-xs font-semibold"
                 title="Next Page"
               >
-                <ChevronRight className="h-4 w-4" />
-              </button>
-
-              <button
-                onClick={() => setCurrentPage(totalPages)}
-                disabled={currentPage === totalPages}
-                className="rounded-lg border border-zinc-200 bg-white p-1.5 text-zinc-600 hover:bg-zinc-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-75 cursor-pointer"
-                title="Last Page"
-              >
-                <ChevronsRight className="h-4 w-4" />
+                <span>Next</span>
+                <ChevronRight className="h-3.5 w-3.5" />
               </button>
             </div>
           </div>
         </div>
+    );
+
+  if (showMap) {
+    return (
+      <div 
+        className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-5 items-stretch h-full flex-1 min-h-0"
+        style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}
+      >
+        {/* LEFT SIDE: TOPOLOGY MAP (Larger 2/3 Width Column) */}
+        <div className="lg:col-span-2 flex flex-col h-full min-h-0">
+          <MindanaoMap
+            sites={sortedAndFilteredSites}
+            onSelectSite={onSelectSite}
+            onOpenSiteDetails={onOpenSiteDetails}
+            selectedSiteId={selectedSiteId}
+            alertingSiteId={alertingSiteId}
+            isTvMode={isTvMode}
+          />
+        </div>
+
+        {/* RIGHT SIDE: TABLE CARD (1/3 Width Column) */}
+        <div className="lg:col-span-1 flex flex-col h-full min-h-0">
+          {renderTableCard()}
+        </div>
       </div>
-    </div>
-  );
+    );
+  }
+
+  return renderTableCard();
 };

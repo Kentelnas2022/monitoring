@@ -2,12 +2,10 @@
 
 import React from 'react';
 import { 
-  Users, 
+  Building2, 
   Wifi, 
-  Clock, 
-  WifiOff, 
-  ArrowUpRight, 
-  ArrowDownRight 
+  WifiOff,
+  AlertTriangle
 } from 'lucide-react';
 import { DashboardStats } from '@/types/dashboard';
 
@@ -20,131 +18,81 @@ interface TopStatsCardsProps {
 
 export const TopStatsCards: React.FC<TopStatsCardsProps> = ({ 
   stats, 
-  offlineSitesCount = 8,
+  offlineSitesCount = 0,
   activeFilter = 'All',
   onSelectFilter,
 }) => {
+  const items = [
+    {
+      id: 'All' as const,
+      label: 'TOTAL PROJECTS',
+      value: stats.totalProjects.toLocaleString(),
+      icon: Building2,
+    },
+    {
+      id: 'Online' as const,
+      label: 'ONLINE DEVICES',
+      value: stats.devicesOnline.toLocaleString(),
+      icon: Wifi,
+    },
+    {
+      id: 'Offline' as const,
+      label: 'OFFLINE DEVICES',
+      value: stats.devicesOffline.toLocaleString(),
+      icon: WifiOff,
+    },
+    {
+      id: 'All Offline' as const,
+      label: 'SITE DOWN LOGS',
+      value: offlineSitesCount.toLocaleString(),
+      icon: AlertTriangle,
+    },
+  ];
+
   return (
     <div 
-      className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-2.5" 
+      className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5"
       style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}
     >
-      {/* CARD 1: TOTAL PROJECTS */}
-      <div 
-        onClick={() => onSelectFilter?.('All')}
-        title="Click to view All Projects in table"
-        className={`rounded-xl border bg-white px-3 py-2 transition-all flex items-center gap-2.5 cursor-pointer select-none ${
-          activeFilter === 'All'
-            ? 'border-zinc-300 ring-2 ring-zinc-200/80 shadow-xs'
-            : 'border-zinc-200/80 hover:border-zinc-300 hover:shadow-xs shadow-2xs'
-        }`}
-      >
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#eaf5eb] text-[#237227] shrink-0">
-          <Users className="h-4 w-4" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between gap-1">
-            <span className="text-xl font-extrabold text-zinc-900 tracking-tight leading-none">
-              {stats.totalProjects.toLocaleString()}
-            </span>
-            <span className="inline-flex items-center gap-0.5 rounded-full bg-[#ecf7ed] px-1.5 py-0.5 text-[10px] font-bold text-[#237227] border border-emerald-200/60 shrink-0">
-              <ArrowUpRight className="h-2.5 w-2.5" />
-              <span>+12%</span>
-            </span>
-          </div>
-          <div className="text-[11px] font-bold text-zinc-700 leading-tight truncate">Total Projects</div>
-          <div className="text-[10px] text-zinc-400 leading-tight truncate">Registered facilities</div>
-        </div>
-      </div>
+      {items.map((item) => {
+        const isActive = activeFilter === item.id;
+        const Icon = item.icon;
 
-      {/* CARD 2: ONLINE DEVICES */}
-      <div 
-        onClick={() => onSelectFilter?.('Online')}
-        title="Click to filter table to Online facilities"
-        className={`rounded-xl border bg-white px-3 py-2 transition-all flex items-center gap-2.5 cursor-pointer select-none ${
-          activeFilter === 'Online'
-            ? 'border-zinc-300 ring-2 ring-zinc-200/80 shadow-xs'
-            : 'border-zinc-200/80 hover:border-zinc-300 hover:shadow-xs shadow-2xs'
-        }`}
-      >
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#edf4ff] text-[#2563eb] shrink-0">
-          <Wifi className="h-4 w-4" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between gap-1">
-            <span className="text-xl font-extrabold text-zinc-900 tracking-tight leading-none">
-              {stats.devicesOnline.toLocaleString()}
-            </span>
-            <span className="inline-flex items-center gap-0.5 rounded-full bg-[#eef5ff] px-1.5 py-0.5 text-[10px] font-bold text-[#2563eb] border border-blue-200/60 shrink-0">
-              <ArrowUpRight className="h-2.5 w-2.5" />
-              <span>+8%</span>
-            </span>
-          </div>
-          <div className="text-[11px] font-bold text-zinc-700 leading-tight truncate">Online Devices</div>
-          <div className="text-[10px] text-zinc-400 leading-tight truncate" title={stats.totalAps ? `${stats.onlineAps}/${stats.totalAps} APs healthy` : undefined}>
-            {stats.onlineAps !== undefined ? `${stats.onlineAps} APs healthy` : 'Live cloud telemetry'}
-          </div>
-        </div>
-      </div>
+        return (
+          <div
+            key={item.id}
+            onClick={() => onSelectFilter?.(item.id)}
+            title={`Filter view by ${item.label}`}
+            className={`bg-white rounded-2xl border p-4 sm:p-5 shadow-2xs transition-all duration-200 cursor-pointer select-none flex flex-col justify-between ${
+              isActive
+                ? 'border-slate-300 bg-slate-100/90 shadow-sm'
+                : 'border-slate-200 hover:bg-slate-50 hover:shadow-md hover:border-slate-300'
+            }`}
+          >
+            {/* Header: Icon Container */}
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <div className="h-10 w-10 rounded-xl bg-[#237227] text-white flex items-center justify-center shrink-0 shadow-2xs">
+                <Icon className="h-5 w-5 text-white" />
+              </div>
+            </div>
 
-      {/* CARD 3: OFFLINE DEVICES */}
-      <div 
-        onClick={() => onSelectFilter?.('Offline')}
-        title="Click to filter table to Partial Offline facilities"
-        className={`rounded-xl border bg-white px-3 py-2 transition-all flex items-center gap-2.5 cursor-pointer select-none ${
-          activeFilter === 'Offline'
-            ? 'border-zinc-300 ring-2 ring-zinc-200/80 shadow-xs'
-            : 'border-zinc-200/80 hover:border-zinc-300 hover:shadow-xs shadow-2xs'
-        }`}
-      >
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#fff6e5] text-[#d97706] shrink-0">
-          <WifiOff className="h-4 w-4" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between gap-1">
-            <span className="text-xl font-extrabold text-zinc-900 tracking-tight leading-none">
-              {stats.devicesOffline.toLocaleString()}
-            </span>
-            <span className="inline-flex items-center gap-0.5 rounded-full bg-[#fff1f2] px-1.5 py-0.5 text-[10px] font-bold text-[#e11d48] border border-rose-200/60 shrink-0">
-              <ArrowDownRight className="h-2.5 w-2.5" />
-              <span>-3</span>
-            </span>
+            {/* Content: Value + Label */}
+            <div>
+              <span className="text-3xl font-semibold text-slate-900 tracking-tight leading-none">
+                {item.value}
+              </span>
+              <div className="mt-2">
+                <h3 className="text-xs font-semibold text-slate-800">
+                  {item.label}
+                </h3>
+              </div>
+            </div>
           </div>
-          <div className="text-[11px] font-bold text-zinc-700 leading-tight truncate">Offline Devices</div>
-          <div className="text-[10px] text-zinc-400 leading-tight truncate" title={stats.offlineAps !== undefined ? `${stats.offlineAps} APs unreachable` : undefined}>
-            {stats.offlineAps !== undefined && stats.offlineAps > 0 ? `${stats.offlineAps} APs unreachable` : 'Unreachable APs & switches'}
-          </div>
-        </div>
-      </div>
-
-      {/* CARD 4: OFFLINE DOWN SITES */}
-      <div 
-        onClick={() => onSelectFilter?.('All Offline')}
-        title="Click to filter table to All Offline down sites"
-        className={`rounded-xl border bg-white px-3 py-2 transition-all flex items-center gap-2.5 cursor-pointer select-none ${
-          activeFilter === 'All Offline'
-            ? 'border-zinc-300 ring-2 ring-zinc-200/80 shadow-xs'
-            : 'border-zinc-200/80 hover:border-zinc-300 hover:shadow-xs shadow-2xs'
-        }`}
-      >
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#ffecee] text-[#e11d48] shrink-0">
-          <Clock className="h-4 w-4" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between gap-1">
-            <span className="text-xl font-extrabold text-zinc-900 tracking-tight leading-none">
-              {offlineSitesCount}
-            </span>
-            <span className="inline-flex items-center gap-0.5 rounded-full bg-[#ecfdf5] px-1.5 py-0.5 text-[10px] font-bold text-[#059669] border border-emerald-200/60 shrink-0">
-              <ArrowUpRight className="h-2.5 w-2.5" />
-              <span>+1</span>
-            </span>
-          </div>
-          <div className="text-[11px] font-bold text-zinc-700 leading-tight truncate">Offline Down Sites</div>
-          <div className="text-[10px] text-zinc-400 leading-tight truncate">Immediate dispatch</div>
-        </div>
-      </div>
+        );
+      })}
     </div>
   );
 };
+
+
 

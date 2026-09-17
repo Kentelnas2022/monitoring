@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Menu, X } from 'lucide-react';
 import { formatLocalizedDate, formatLocalizedTime, getTimezoneAbbr } from '@/utils/i18n';
 
 interface HeaderProps {
@@ -23,8 +22,6 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleBurger,
   language = 'English',
   timezone = 'Asia/Manila',
-  onRefresh,
-  isRefreshing = false,
 }) => {
   const [currentTime, setCurrentTime] = useState<string>('');
   const [currentDate, setCurrentDate] = useState<string>('');
@@ -44,52 +41,46 @@ export const Header: React.FC<HeaderProps> = ({
   }, [language, timezone]);
 
   return (
-    <header className="shrink-0 z-30 w-full border-b border-zinc-200 bg-white transition-colors" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
-      {/* Full width container spanning left corner to right corner on Desktop and TV */}
-      <div className="w-full px-4 sm:px-6 lg:px-8">
-        <div className="flex h-[72px] items-center justify-between gap-4">
-          {/* LEFT CORNER: Provided Logo & Exact Branding + Auto-removing Menu Icon */}
-          <div className="flex items-center gap-3 sm:gap-4">
-            {/* Menu Bar Icon: Auto-removed from display when navigation sidebar is open */}
+    <header className="shrink-0 z-30 w-full border-b border-slate-200 bg-white shadow-2xs" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
+      <div className="w-full px-4 sm:px-6">
+        <div className="flex h-16 items-center justify-between gap-4">
+          {/* LEFT CORNER: Burger toggle & Header title */}
+          <div className="flex items-center gap-3">
             {!isBurgerOpen && (
               <button
                 type="button"
                 onClick={onToggleBurger}
                 title="Open navigation menu"
                 aria-label="Open navigation menu"
-                className="h-10 w-10 rounded-2xl border border-slate-200/90 bg-white hover:bg-slate-50 flex items-center justify-center text-slate-600 shadow-2xs transition-all cursor-pointer shrink-0 animate-in fade-in duration-150"
+                className="h-10 w-10 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 flex items-center justify-center text-slate-700 shadow-2xs transition-all cursor-pointer shrink-0 animate-in fade-in duration-150"
               >
                 <div className="flex flex-col gap-[3.5px] w-4">
-                  <span className="h-[2px] w-full bg-[#334155] rounded-full" />
-                  <span className="h-[2px] w-full bg-[#334155] rounded-full" />
-                  <span className="h-[2px] w-full bg-[#334155] rounded-full" />
+                  <span className="h-[2px] w-full bg-slate-800 rounded-full" />
+                  <span className="h-[2px] w-full bg-slate-800 rounded-full" />
+                  <span className="h-[2px] w-full bg-slate-800 rounded-full" />
                 </div>
               </button>
             )}
 
-            {/* Header Title: Dynamic (DASHBOARD / RECEIVER) */}
             <div className="flex flex-col justify-center">
-              <h1 className="text-base sm:text-lg font-bold tracking-tight text-zinc-900 leading-tight">
+              <h1 className="text-lg sm:text-xl font-bold tracking-tight text-slate-900 leading-tight">
                 {title}
               </h1>
             </div>
           </div>
 
-          {/* RIGHT CORNER: Live Realtime Date & Time + Telemetry Sync Button */}
-          <div className="flex items-center gap-2 sm:gap-3">
-
-
-            {/* Live Realtime Date & Time (Clean, Text-Only) */}
+          {/* RIGHT CORNER: Realtime clock */}
+          <div className="flex items-center gap-3">
             <div className="flex flex-col text-right justify-center">
               <div className="flex items-center justify-end gap-1.5">
-                <span className="font-mono text-xs sm:text-sm font-bold text-zinc-900 tracking-tight leading-none" suppressHydrationWarning>
+                <span className="text-xs sm:text-sm font-medium text-slate-800 tracking-tight leading-none" suppressHydrationWarning>
                   {currentTime || '--:--:-- --'}
                 </span>
-                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-slate-100 text-slate-500 border border-slate-200">
                   {tzAbbr}
                 </span>
               </div>
-              <span className="text-[11px] sm:text-xs font-medium text-zinc-500 leading-tight mt-1" suppressHydrationWarning>
+              <span className="text-[11px] font-normal text-slate-500 leading-tight mt-0.5" suppressHydrationWarning>
                 {currentDate || '---------'}
               </span>
             </div>
@@ -99,5 +90,3 @@ export const Header: React.FC<HeaderProps> = ({
     </header>
   );
 };
-
-

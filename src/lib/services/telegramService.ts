@@ -89,6 +89,9 @@ export interface TelegramDispatchPayload {
   siteId?: string;
   siteName: string;
   siteCode?: string;
+  location?: string;
+  model?: string;
+  deviceSn?: string;
   severity?: string;
   alarmType?: string;
   downtimeDuration?: string;
@@ -97,6 +100,8 @@ export interface TelegramDispatchPayload {
   lastKnownIp?: string;
   recipientName: string;
   telegramUsername: string;
+  phone?: string;
+  socialMedia?: string;
   chatId?: string;
   customNotes?: string;
 }
@@ -105,10 +110,15 @@ export interface AreaDowntimeDispatchPayload {
   areaName: string;
   recipientName: string;
   telegramUsername: string;
+  phone?: string;
+  socialMedia?: string;
   chatId?: string;
   downSites: Array<{
     name: string;
     code?: string;
+    location?: string;
+    model?: string;
+    deviceSn?: string;
     offlineCount: number;
     deviceCount?: number;
     lastKnownIp?: string;
@@ -171,20 +181,24 @@ export async function sendTelegramIncidentAlert(payload: TelegramDispatchPayload
     } catch {}
   }
 
+  const locationDisplay = payload.location || 'Region 10';
+  const modelDisplay = payload.model || (payload.siteName === 'OJT' || payload.siteCode === 'RJ-9588688' ? 'EW1200' : 'Ruijie Gateway');
+  const deviceSnDisplay = payload.deviceSn || (payload.siteName === 'OJT' || payload.siteCode === 'RJ-9588688' ? 'G1QH3N710075C' : 'N/A');
+  const downtimeDisplay = payload.downtimeDuration || 'Active';
+  const phoneDisplay = payload.phone || 'N/A';
+  const socialDisplay = payload.socialMedia || (cleanUsername ? `@${cleanUsername}` : 'N/A');
+
   const htmlMessage = 
-    `🚨 <b>DICT NOC INCIDENT DISPATCH</b>\n` +
-    `━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-    `📍 <b>Site:</b> <b>${escapeHtml(payload.siteName)}</b>\n` +
-    (payload.siteCode ? `🏷 <b>Code:</b> <code>${escapeHtml(payload.siteCode)}</code>\n` : '') +
-    `⚠️ <b>Severity:</b> <b>${escapeHtml((payload.severity || 'Critical').toUpperCase())}</b>\n` +
-    (payload.alarmType ? `⚡ <b>Alarm:</b> ${escapeHtml(payload.alarmType)}\n` : '') +
-    (payload.offlineDeviceCount !== undefined ? `📶 <b>Device Health:</b> ${payload.offlineDeviceCount} of ${payload.totalDeviceCount || payload.offlineDeviceCount} Offline\n` : '') +
-    (payload.lastKnownIp ? `🌐 <b>Gateway IP:</b> <code>${escapeHtml(payload.lastKnownIp)}</code>\n` : '') +
-    (payload.downtimeDuration ? `⏱ <b>Downtime Duration:</b> ${escapeHtml(payload.downtimeDuration)}\n` : '') +
-    `👤 <b>Assigned Responder:</b> ${escapeHtml(payload.recipientName)} (@${escapeHtml(cleanUsername)})\n` +
-    (payload.customNotes ? `📝 <b>Dispatch Notes:</b> <i>${escapeHtml(payload.customNotes)}</i>\n` : '') +
-    `━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-    `<i>Multifactors Sales Network Monitoring System • Automated Field Triage</i>`;
+    `A network outage has been detected at <b>${escapeHtml(payload.siteName)}</b> located in <b>${escapeHtml(locationDisplay)}</b>. Please proceed to your assigned site immediately for inspection and troubleshooting.\n\n` +
+    `<b>Project Name:</b> ${escapeHtml(payload.siteName)}\n` +
+    `<b>Location:</b> ${escapeHtml(locationDisplay)}\n` +
+    `<b>Model:</b> ${escapeHtml(modelDisplay)}\n` +
+    `<b>Device SN:</b> <code>${escapeHtml(deviceSnDisplay)}</code>\n` +
+    `<b>Downtime:</b> ${escapeHtml(downtimeDisplay)}\n\n` +
+    `<b>Contact Person:</b>\n` +
+    `<b>Name:</b> ${escapeHtml(payload.recipientName)}\n` +
+    `<b>Phone Number:</b> ${escapeHtml(phoneDisplay)}\n` +
+    `<b>Social Media:</b> ${escapeHtml(socialDisplay)}`;
 
   // If a live bot token is present and configured
   if (token && token !== 'YOUR_TELEGRAM_BOT_TOKEN_HERE' && !token.includes('1234567890')) {
@@ -299,27 +313,31 @@ export async function sendTelegramAreaDowntimeAlert(payload: AreaDowntimeDispatc
   }
 
   const downCount = payload.downSites.length;
+  const phoneDisplay = payload.phone || 'N/A';
+  const socialDisplay = payload.socialMedia || (cleanUsername ? `@${cleanUsername}` : 'N/A');
+
   let siteListText = '';
   payload.downSites.forEach((site, index) => {
+    const loc = site.location || payload.areaName || 'Region 10';
+    const model = site.model || (site.name === 'OJT' || site.code === 'RJ-9588688' ? 'EW1200' : 'Ruijie Gateway');
+    const sn = site.deviceSn || (site.name === 'OJT' || site.code === 'RJ-9588688' ? 'G1QH3N710075C' : 'N/A');
     siteListText += 
-      `\n🔴 <b>${index + 1}. ${escapeHtml(site.name)}</b>\n` +
-      (site.code ? `   • <b>Code:</b> <code>${escapeHtml(site.code)}</code>\n` : '') +
-      `   • <b>Status:</b> ${site.offlineCount} of ${site.deviceCount || site.offlineCount} Devices Offline\n` +
-      (site.lastKnownIp ? `   • <b>Gateway IP:</b> <code>${escapeHtml(site.lastKnownIp)}</code>\n` : '') +
-      (site.downtimeDuration ? `   • <b>Downtime Duration:</b> ${escapeHtml(site.downtimeDuration)}\n` : '');
+      `\n${index + 1}. <b>${escapeHtml(site.name)}</b>\n` +
+      `   <b>Location:</b> ${escapeHtml(loc)}\n` +
+      `   <b>Model:</b> ${escapeHtml(model)}\n` +
+      `   <b>Device SN:</b> <code>${escapeHtml(sn)}</code>\n` +
+      `   <b>Downtime:</b> ${escapeHtml(site.downtimeDuration || 'Active')}\n`;
   });
 
   const htmlMessage = 
-    `🚨 <b>DICT NOC CRITICAL AREA OUTAGE ALERT</b>\n` +
-    `━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-    `📍 <b>Assigned Area:</b> <b>${escapeHtml(payload.areaName)}</b>\n` +
-    `👤 <b>Designated Responder:</b> <b>${escapeHtml(payload.recipientName)}</b> (@${escapeHtml(cleanUsername)})\n` +
-    `⚠️ <b>Current Status:</b> <b>${downCount} Site(s) DOWN / Offline</b> in your assigned area.\n` +
-    `━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+    `A network outage has been detected for <b>${downCount} site(s)</b> located in <b>${escapeHtml(payload.areaName)}</b>. Please proceed to your assigned area immediately for inspection and troubleshooting.\n\n` +
+    `<b>Affected Sites:</b>` +
     siteListText +
-    `\n━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-    `⚡ <i>Action Required: Please initiate remote telemetry inspection or on-site dispatch triage immediately.</i>\n` +
-    `<i>Multifactors Sales Network Monitoring System • Automated Field Triage</i>`;
+    `\n` +
+    `<b>Contact Person:</b>\n` +
+    `<b>Name:</b> ${escapeHtml(payload.recipientName)}\n` +
+    `<b>Phone Number:</b> ${escapeHtml(phoneDisplay)}\n` +
+    `<b>Social Media:</b> ${escapeHtml(socialDisplay)}`;
 
   // Log each down site to dispatches and activity logs
   for (const site of payload.downSites) {

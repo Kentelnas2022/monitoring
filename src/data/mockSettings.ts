@@ -11,8 +11,8 @@ export const initialSystemSettings: SystemSettings = {
   },
   monitoring: {
     ruijieApiEndpoint: 'https://cloud-as.ruijienetworks.com',
-    ruijieAppId: 'open1312043d9a82',
-    ruijieAppSecret: '8ARNMqo7uXgU5NTweEmWn46Hvewjcp1PtqfXTKDZTj29',
+    ruijieAppId: 'open1d9ecf635290',
+    ruijieAppSecret: 'a5dfb884bd7847cf8f21d28088f48a7e',
     googleMapsApiKey: 'AIzaSyAq58TD9PputxnK8ZO9jRUX8KW7bTuPTPQ',
     syncIntervalSeconds: 30,
     pingThreshold: 3,

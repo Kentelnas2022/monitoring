@@ -110,22 +110,27 @@ export const TelegramDispatchModal: React.FC<TelegramDispatchModalProps> = ({
 
   const telegramMessage = useMemo(() => {
     if (!currentSite) return '';
+    const loc = currentSite.municipality || currentSite.province || currentSite.region || 'Region 10';
+    const model = currentSite.devices?.[0]?.model || (currentSite.name === 'OJT' || currentSite.code === 'RJ-9588688' ? 'EW1200' : 'Ruijie Gateway');
+    const deviceSn = currentSite.devices?.[0]?.serialNumber || (currentSite.name === 'OJT' || currentSite.code === 'RJ-9588688' ? 'G1QH3N710075C' : 'N/A');
+    const social = currentSite.assignedHandler?.socialMedia || (personTelegram ? `@${personTelegram.replace(/^@/, '')}` : 'N/A');
+    const downtime = currentSite.downtimeDuration || 'Active';
+
     return [
-      `🚨 [DICT-RUIJIE OUTAGE ALERT]`,
-      `📍 Site: ${currentSite.name} (${currentSite.code})`,
-      `⚠️ Status: ${currentSite.alarmType || 'All device offline'}`,
-      `🏢 Area: ${currentSite.province}, ${currentSite.region}`,
-      `🌐 Gateway IP: ${currentSite.lastKnownIp}`,
-      `⏱️ Downtime Duration: ${currentSite.downtimeDuration || 'Active'}`,
-      `━━━━━━━━━━━━━━━━━━━━`,
-      `👤 Assigned Engineer: ${personName}`,
-      `📞 Contact: ${personPhone}`,
-      `✈️ Telegram: @${personTelegram.replace(/^@/, '')}`,
-      `📋 Task Notes: ${dispatchNotes}`,
-      `━━━━━━━━━━━━━━━━━━━━`,
-      `NOC Admin Dispatch Command • Ruijie Cloud Mindanao`,
+      `A network outage has been detected at ${currentSite.name} located in ${loc}. Please proceed to your assigned site immediately for inspection and troubleshooting.`,
+      ``,
+      `Project Name: ${currentSite.name}`,
+      `Location: ${loc}`,
+      `Model: ${model}`,
+      `Device SN: ${deviceSn}`,
+      `Downtime: ${downtime}`,
+      ``,
+      `Contact Person:`,
+      `Name: ${personName || 'Unassigned'}`,
+      `Phone Number: ${personPhone || 'N/A'}`,
+      `Social Media: ${social}`,
     ].join('\n');
-  }, [currentSite, personName, personPhone, personTelegram, dispatchNotes]);
+  }, [currentSite, personName, personPhone, personTelegram]);
 
   const handleCopyTelegramMessage = () => {
     navigator.clipboard.writeText(telegramMessage);
@@ -144,6 +149,9 @@ export const TelegramDispatchModal: React.FC<TelegramDispatchModalProps> = ({
       role: personRole || 'Assigned Field Responder',
     };
 
+    const model = currentSite.devices?.[0]?.model || (currentSite.name === 'OJT' || currentSite.code === 'RJ-9588688' ? 'EW1200' : 'Ruijie Gateway');
+    const deviceSn = currentSite.devices?.[0]?.serialNumber || (currentSite.name === 'OJT' || currentSite.code === 'RJ-9588688' ? 'G1QH3N710075C' : 'N/A');
+
     onUpdatePersonnel(currentSite.name, handlerPayload, false);
     onSendTelegramDispatch(currentSite, handlerPayload, dispatchNotes);
 
@@ -155,11 +163,16 @@ export const TelegramDispatchModal: React.FC<TelegramDispatchModalProps> = ({
         siteId: currentSite.id,
         siteName: currentSite.name,
         siteCode: currentSite.code,
+        location: currentSite.municipality || currentSite.province || currentSite.region || 'Region 10',
+        model,
+        deviceSn,
         severity: currentSite.severity,
         alarmType: currentSite.alarmType,
         downtimeDuration: currentSite.downtimeDuration,
         recipientName: handlerPayload.name,
         telegramUsername: handlerPayload.telegram,
+        phone: handlerPayload.phone,
+        socialMedia: handlerPayload.socialMedia || (handlerPayload.telegram ? `@${handlerPayload.telegram.replace(/^@/, '')}` : ''),
         chatId: handlerPayload.chatId || personChatId,
         customNotes: dispatchNotes,
       }),
