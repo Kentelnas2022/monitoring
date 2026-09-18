@@ -10,10 +10,16 @@ const noCacheHeaders = {
   'Expires': '0',
 };
 
-// POST /api/ruijie/sync — manually triggered from dashboard Refresh button
-export async function POST() {
+// POST /api/ruijie/sync — manually triggered from dashboard Refresh button or sync with cookie
+export async function POST(req: Request) {
   try {
-    const result = await syncRuijieCloudTelemetry();
+    let explicitCookie: string | undefined;
+    try {
+      const body = await req.json();
+      if (body?.cookie) explicitCookie = String(body.cookie).trim();
+    } catch {}
+
+    const result = await syncRuijieCloudTelemetry(explicitCookie);
     return NextResponse.json(result, { headers: noCacheHeaders });
   } catch (error: any) {
     return NextResponse.json(

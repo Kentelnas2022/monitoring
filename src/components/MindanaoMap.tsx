@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import type * as LType from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { resolveMindanaoSiteLocation, NORTHERN_MINDANAO_CENTER, NORTHERN_MINDANAO_DEFAULT_ZOOM } from '@/lib/geoUtils';
 
 interface MindanaoMapProps {
   sites: SiteInfrastructure[];
@@ -31,8 +32,8 @@ interface MindanaoMapProps {
 }
 
 // Center coordinates for Northern Mindanao (Region 10: Lanao del Norte, Misamis Occidental, Misamis Oriental, Camiguin, Bukidnon)
-const MINDANAO_CENTER: [number, number] = [8.45, 124.35];
-const DEFAULT_ZOOM = 8.5;
+const MINDANAO_CENTER: [number, number] = NORTHERN_MINDANAO_CENTER;
+const DEFAULT_ZOOM = NORTHERN_MINDANAO_DEFAULT_ZOOM;
 
 // Helper to construct radar beacon SVG icons
 const createMarkerIcon = (
@@ -124,12 +125,13 @@ export const MindanaoMap: React.FC<MindanaoMapProps> = ({
 
   // Filter/Map sites ensuring all have valid coordinates for Leaflet marker & zoom display
   const sitesWithCoords = useMemo(() => {
-    return sites.map((s, idx) => {
+    return sites.map((s) => {
       let lat = Number(s.coordinates?.lat);
       let lng = Number(s.coordinates?.lng);
       if (!lat || !lng || isNaN(lat) || isNaN(lng) || (lat === 0 && lng === 0)) {
-        lat = 8.45 + (idx % 6) * 0.07;
-        lng = 124.35 + (idx % 8) * 0.07;
+        const resolved = resolveMindanaoSiteLocation(s.name, s.id);
+        lat = resolved.lat;
+        lng = resolved.lng;
       }
       return {
         ...s,
@@ -228,8 +230,11 @@ export const MindanaoMap: React.FC<MindanaoMapProps> = ({
       ? rawSocial.split(':').slice(1).join(':').trim() 
       : rawSocial.trim();
 
-    // Device serial number
-    const deviceSn = site.devices?.[0]?.serialNumber || (site.code === 'RJ-9588688' || site.name === 'OJT' ? 'G1QH3N710075C' : 'N/A');
+    // Device serial number and model
+    const offlineDev = site.devices?.find((d) => d.status === 'Offline');
+    const dev = offlineDev || site.devices?.[0];
+    const deviceSn = dev?.serialNumber || (site.code === 'RJ-9588688' || site.name === 'OJT' ? 'G1QH3N710075C' : 'N/A');
+    const modelDisplay = dev?.model || (site.code === 'RJ-9588688' || site.name === 'OJT' ? 'EW1200' : 'Ruijie Device');
 
     // Site Code format (e.g. RJ - 9588688)
     const rawCode = site.code || (site.name === 'OJT' ? 'RJ-9588688' : '');
@@ -281,6 +286,11 @@ export const MindanaoMap: React.FC<MindanaoMapProps> = ({
           <div style="display: flex; justify-content: space-between; align-items: center;">
             <span style="color: #71717a;">IP Address:</span>
             <span style="font-family: monospace; font-weight: 700; color: #18181b;">${site.lastKnownIp || 'N/A'}</span>
+          </div>
+
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="color: #71717a;">Model:</span>
+            <span style="font-weight: 700; color: #18181b;">${modelDisplay}</span>
           </div>
 
           <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -365,10 +375,12 @@ export const MindanaoMap: React.FC<MindanaoMapProps> = ({
         }, 120);
       });
 
-      // Free Official Google Maps Roadmap Tiles
-      const googleTileLayer = L.tileLayer('https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+      // Official Google Maps Roadmap Tiles
+      const googleKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ? `&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}` : '';
+      const googleTileLayer = L.tileLayer(`https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}${googleKey}`, {
         subdomains: ['0', '1', '2', '3'],
         maxZoom: 20,
+        attribution: '&copy; Google Maps',
       }).addTo(map);
 
       tileLayerRef.current = googleTileLayer;
@@ -410,9 +422,11 @@ export const MindanaoMap: React.FC<MindanaoMapProps> = ({
 
       // 'm' = Roadmap, 'y' = Hybrid (Satellite + Roads/Labels)
       const layerType = type === 'satellite' ? 'y' : 'm';
-      const newLayer = L.tileLayer(`https://mt{s}.google.com/vt/lyrs=${layerType}&x={x}&y={y}&z={z}`, {
+      const googleKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ? `&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}` : '';
+      const newLayer = L.tileLayer(`https://mt{s}.google.com/vt/lyrs=${layerType}&x={x}&y={y}&z={z}${googleKey}`, {
         subdomains: ['0', '1', '2', '3'],
         maxZoom: 20,
+        attribution: '&copy; Google Maps',
       });
 
       if (mapInstanceRef.current) {
@@ -453,6 +467,11 @@ export const MindanaoMap: React.FC<MindanaoMapProps> = ({
         const existingMarker = markersMapRef.current.get(site.id);
 
         if (existingMarker) {
+          // Update location dynamically if coordinates changed
+          if (site.coordinates) {
+            existingMarker.setLatLng([site.coordinates.lat, site.coordinates.lng]);
+          }
+
           // Update icon & zIndex without affecting open popup state
           existingMarker.setIcon(customIcon);
           existingMarker.setZIndexOffset(zIndexOffset);

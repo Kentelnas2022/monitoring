@@ -3,6 +3,7 @@ import { initialSystemSettings } from '@/data/mockSettings';
 import { ActivityLog, AssignedHandler, SiteInfrastructure } from '@/types/dashboard';
 import { SystemSettings } from '@/types/settings';
 import { hashPassword, verifyPassword } from '@/lib/auth';
+import { resolveMindanaoSiteLocation } from './geoUtils';
 
 interface UserRecord {
   id: string;
@@ -194,9 +195,27 @@ export async function getDbPool(): Promise<Pool | null> {
         try {
           await conn.query('ALTER TABLE sites ADD COLUMN contact_person_social VARCHAR(64) NULL');
         } catch {}
-        try {
-          await conn.query('ALTER TABLE sites ADD COLUMN contact_person_role VARCHAR(80) NULL DEFAULT "Designated Responder"');
-        } catch {}
+      }
+
+      // Ensure activity_logs table exists in MySQL
+      try {
+        await conn.query(`
+          CREATE TABLE IF NOT EXISTS activity_logs (
+            id VARCHAR(64) PRIMARY KEY,
+            type VARCHAR(32) NOT NULL,
+            title VARCHAR(255) NOT NULL,
+            description TEXT NOT NULL,
+            site_id VARCHAR(64) NULL,
+            site_name VARCHAR(128) NULL,
+            site_code VARCHAR(64) NULL,
+            person_name VARCHAR(128) NULL,
+            telegram_username VARCHAR(64) NULL,
+            severity VARCHAR(32) DEFAULT 'info',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          )
+        `);
+      } catch (e: unknown) {
+        console.warn('[Database Notice] activity_logs table verify:', e);
       }
 
       conn.release();
@@ -232,8 +251,9 @@ const memoryDispatches: TelegramDispatchRecord[] = [];
 
 // Helper to resolve municipality and landmark address from Ruijie Cloud telemetry
 export function parseSiteLocation(name: string, province: string): { municipality: string; landmark?: string } {
+  const geo = resolveMindanaoSiteLocation(name);
   return {
-    municipality: province || name || 'Regional',
+    municipality: geo.municipality || province || 'Regional',
     landmark: name || undefined,
   };
 }
@@ -278,7 +298,7 @@ export const db = {
       if (pool) {
         try {
           const [rows] = await pool.query<DbUserRow[]>(
-            'SELECT id, full_name, email, username, password_hash, role, status FROM users WHERE LOWER(username) = ? OR LOWER(email) = ? LIMIT 1',
+            'SELECT id, full_name, email, username, password_hash, role, status, two_factor_enabled FROM users WHERE LOWER(username) = ? OR LOWER(email) = ? LIMIT 1',
             [cleanIdent, cleanIdent]
           );
           if (!rows || rows.length === 0) {
@@ -303,6 +323,7 @@ export const db = {
                 username: row.username,
                 role: row.role,
                 status: row.status,
+                twoFactorEnabled: row.two_factor_enabled === 1,
               },
             };
           } else {
@@ -546,7 +567,7 @@ export const db = {
           const [deviceRows] = await pool.query<DbDeviceRow[]>(`
             SELECT id, site_id, device_name, model, serial_number, mac_address, ip_address, device_type, status
             FROM devices
-            ORDER BY device_type = 'Gateway' DESC, id ASC
+            ORDER BY status = 'Offline' DESC, device_type = 'Gateway' DESC, id ASC
           `).catch(() => [[] as DbDeviceRow[]]);
 
           const devicesBySiteId = new Map<string, Array<{
@@ -616,7 +637,14 @@ export const db = {
               severity: r.event_severity || r.severity || undefined,
               downtimeDuration: durationLabel || (r.downtime_started_at ? 'Active' : undefined),
               lastKnownIp: r.last_known_ip,
-              coordinates: { lat: Number(r.latitude), lng: Number(r.longitude) },
+              coordinates: {
+                lat: Number(r.latitude) && !isNaN(Number(r.latitude)) && Number(r.latitude) !== 0
+                  ? Number(r.latitude)
+                  : resolveMindanaoSiteLocation(r.name, r.id).lat,
+                lng: Number(r.longitude) && !isNaN(Number(r.longitude)) && Number(r.longitude) !== 0
+                  ? Number(r.longitude)
+                  : resolveMindanaoSiteLocation(r.name, r.id).lng,
+              },
               apCount: r.ap_count !== null && r.ap_count !== undefined ? Number(r.ap_count) : 0,
               apOffline: r.ap_offline !== null && r.ap_offline !== undefined ? Number(r.ap_offline) : 0,
               gatewayCount: r.gateway_count !== null && r.gateway_count !== undefined ? Number(r.gateway_count) : 0,
@@ -704,7 +732,7 @@ export const db = {
       if (pool) {
         try {
           const [rows] = await pool.query<RowDataPacket[]>(
-            'SELECT id, type, title, description, site_name as siteName, site_code as siteCode, person_name as personName, telegram_username as telegramUsername, severity, DATE_FORMAT(created_at, "%b %d, %Y %H:%i") as timestamp FROM activity_logs ORDER BY created_at DESC'
+            'SELECT id, type, title, description, site_name as siteName, site_code as siteCode, person_name as personName, telegram_username as telegramUsername, severity, DATE_FORMAT(created_at, "%b %d, %Y %H:%i") as timestamp, created_at as createdAt FROM activity_logs ORDER BY created_at DESC'
           );
           return rows as unknown as ActivityLog[];
         } catch (e: unknown) {
@@ -720,7 +748,7 @@ export const db = {
       if (pool) {
         try {
           await pool.query(
-            'INSERT INTO activity_logs (id, type, title, description, site_name, site_code, person_name, telegram_username, severity) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            'INSERT INTO activity_logs (id, type, title, description, site_name, site_code, person_name, telegram_username, severity, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())',
             [id, log.type, log.title, log.description, log.siteName || null, log.siteCode || null, log.personName || null, log.telegramUsername || null, log.severity || 'info']
           );
         } catch (e: unknown) {
@@ -728,7 +756,7 @@ export const db = {
         }
       }
 
-      const newLog: ActivityLog = { id, ...log };
+      const newLog: ActivityLog = { id, ...log, createdAt: new Date().toISOString() };
       memoryActivityLogs = [newLog, ...memoryActivityLogs];
       return newLog;
     },
@@ -831,9 +859,13 @@ export const db = {
               ruijieAppId: map['ruijie.appId'] || memorySettings.monitoring.ruijieAppId,
               ruijieAppSecret: map['ruijie.appSecret'] || memorySettings.monitoring.ruijieAppSecret,
               ruijieApiEndpoint: map['ruijie.baseUrl'] || memorySettings.monitoring.ruijieApiEndpoint,
+              ruijieSessionCookie: map['ruijie.sessionCookie'] || process.env.RUIJIE_SESSION_COOKIE || memorySettings.monitoring.ruijieSessionCookie,
               syncIntervalSeconds: map['monitoring.syncIntervalSeconds'] 
                 ? Number(map['monitoring.syncIntervalSeconds']) 
                 : memorySettings.monitoring.syncIntervalSeconds,
+              pingThreshold: map['monitoring.pingThreshold']
+                ? Number(map['monitoring.pingThreshold'])
+                : (memorySettings.monitoring.pingThreshold ?? 3),
             },
             account: {
               ...memorySettings.account,
@@ -841,6 +873,9 @@ export const db = {
               email: dbUser?.email || map['account.email'] || memorySettings.account.email,
               role: dbUser?.role || memorySettings.account.role,
               telegramUsername: dbUser?.username || memorySettings.account.telegramUsername,
+              sessionTimeoutMinutes: map['account.sessionTimeoutMinutes'] !== undefined 
+                ? Number(map['account.sessionTimeoutMinutes']) 
+                : (memorySettings.account.sessionTimeoutMinutes ?? 30),
             },
           };
         } catch (e: unknown) {
@@ -859,10 +894,13 @@ export const db = {
             ['general.timezone', updated.general?.timezone],
             ['account.fullName', updated.account?.fullName],
             ['account.email', updated.account?.email],
+            ['account.sessionTimeoutMinutes', updated.account?.sessionTimeoutMinutes !== undefined ? String(updated.account.sessionTimeoutMinutes) : undefined],
             ['ruijie.appId', updated.monitoring?.ruijieAppId],
             ['ruijie.appSecret', updated.monitoring?.ruijieAppSecret],
             ['ruijie.baseUrl', updated.monitoring?.ruijieApiEndpoint],
+            ['ruijie.sessionCookie', updated.monitoring?.ruijieSessionCookie],
             ['monitoring.syncIntervalSeconds', updated.monitoring?.syncIntervalSeconds ? String(updated.monitoring.syncIntervalSeconds) : undefined],
+            ['monitoring.pingThreshold', updated.monitoring?.pingThreshold !== undefined ? String(updated.monitoring.pingThreshold) : undefined],
             ['telegram.botToken', updated.telegram?.botToken],
             ['telegram.channelId', updated.telegram?.channelId],
             ['telegram.autoDispatchOnDowntime', updated.telegram?.autoDispatchOnDowntime !== undefined ? String(updated.telegram.autoDispatchOnDowntime) : undefined],

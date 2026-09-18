@@ -99,6 +99,7 @@ export interface ActivityLog {
   title: string;
   description: string;
   timestamp: string;
+  createdAt?: string;
   siteName?: string;
   siteCode?: string;
   personName?: string;

@@ -3,19 +3,13 @@
 import React, { useState } from 'react';
 import { 
   Lock, 
-  User, 
   Eye, 
   EyeOff, 
-  ArrowRight, 
-  ShieldCheck,
-  Activity,
-  Send,
-  Radio,
-  Server,
-  CheckCircle2,
-  Building2,
-  Clock,
-  AlertCircle
+  ShieldCheck, 
+  Activity, 
+  Send, 
+  AlertCircle,
+  Mail
 } from 'lucide-react';
 
 interface LoginLandingPageProps {
@@ -23,6 +17,7 @@ interface LoginLandingPageProps {
 }
 
 export const LoginLandingPage: React.FC<LoginLandingPageProps> = ({ onLogin }) => {
+  // Credentials
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -30,10 +25,12 @@ export const LoginLandingPage: React.FC<LoginLandingPageProps> = ({ onLogin }) =
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // Handle Submit Credentials
+  const handleCredentialsSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setErrorMessage(null);
+
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
@@ -41,10 +38,11 @@ export const LoginLandingPage: React.FC<LoginLandingPageProps> = ({ onLogin }) =
         body: JSON.stringify({ username, password }),
       });
       const data = await res.json();
+
       if (res.ok && data.success) {
         onLogin(data.user);
       } else {
-        setErrorMessage(data.message || 'Invalid credentials. Please verify your email/username and password.');
+        setErrorMessage(data.message || 'Invalid credentials. Please verify your email and password.');
       }
     } catch {
       setErrorMessage('Network connection error: Unable to reach the authentication service.');
@@ -58,7 +56,7 @@ export const LoginLandingPage: React.FC<LoginLandingPageProps> = ({ onLogin }) =
       className="min-h-screen w-full flex flex-col justify-between bg-[#f8fafc] text-slate-900 selection:bg-[#237227] selection:text-white relative overflow-x-hidden font-sans"
       style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}
     >
-      {/* Background Decorative Mesh & Radial Accents (Clean, Light, System-Aligned) */}
+      {/* Background Decorative Mesh & Radial Accents */}
       <div className="absolute inset-0 pointer-events-none select-none overflow-hidden">
         <div className="absolute -top-40 -left-40 w-[600px] h-[600px] bg-emerald-100/50 rounded-full blur-3xl" />
         <div className="absolute top-1/3 -right-40 w-[550px] h-[550px] bg-emerald-50/70 rounded-full blur-3xl" />
@@ -94,133 +92,101 @@ export const LoginLandingPage: React.FC<LoginLandingPageProps> = ({ onLogin }) =
             </div>
           </div>
 
-          {/* Hero Headline: Multifactors Sales Network Monitoring System */}
+          {/* Hero Headline */}
           <div className="space-y-3">
             <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-slate-900 tracking-tight leading-[1.15]">
               Multifactors Sales <br className="hidden sm:block" />
               <span className="text-[#237227]">Network Monitoring System</span>
             </h1>
             <p className="text-sm sm:text-base text-slate-600 leading-relaxed max-w-2xl font-normal">
-              Enterprise network infrastructure monitoring and real-time telemetry platform. Providing continuous visibility, automated downtime detection, and instant incident response across regional facilities.
+              Unified telemetry command center integrating Ruijie Cloud infrastructure, live downtime alert triaging, and real-time Telegram outage notifications for regional government facilities across Northern Mindanao.
             </p>
           </div>
 
-          {/* 3 Core System Capabilities Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 pt-2">
-            
-            {/* Feature 1: Live Polling */}
-            <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-2xs space-y-2">
-              <div className="h-9 w-9 rounded-xl bg-emerald-50 text-[#237227] flex items-center justify-center">
+          {/* Feature Highlights Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 pt-2 max-w-2xl">
+            <div className="p-3.5 rounded-2xl bg-white/85 backdrop-blur-sm border border-slate-200/80 shadow-2xs space-y-1.5">
+              <div className="h-8 w-8 rounded-xl bg-emerald-50 border border-emerald-200/60 flex items-center justify-center text-[#237227]">
                 <Activity className="h-4 w-4" />
               </div>
-              <div>
-                <h3 className="text-xs font-bold text-slate-900">Real-Time Telemetry</h3>
-                <p className="text-[11px] text-slate-500 leading-relaxed mt-0.5">
-                  15s/30s heartbeat polling across gateways, switches, and APs.
-                </p>
+              <div className="text-xs font-bold text-slate-900">Live Telemetry</div>
+              <div className="text-[11px] text-slate-500 leading-normal">
+                Continuous polling of Gateway, AP, and Switch states.
               </div>
             </div>
 
-            {/* Feature 2: Telegram Dispatch */}
-            <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-2xs space-y-2">
-              <div className="h-9 w-9 rounded-xl bg-emerald-50 text-[#237227] flex items-center justify-center">
+            <div className="p-3.5 rounded-2xl bg-white/85 backdrop-blur-sm border border-slate-200/80 shadow-2xs space-y-1.5">
+              <div className="h-8 w-8 rounded-xl bg-blue-50 border border-blue-200/60 flex items-center justify-center text-blue-700">
                 <Send className="h-4 w-4" />
               </div>
-              <div>
-                <h3 className="text-xs font-bold text-slate-900">Telegram Dispatch</h3>
-                <p className="text-[11px] text-slate-500 leading-relaxed mt-0.5">
-                  Instant downtime alerts routed to designated field engineers.
-                </p>
+              <div className="text-xs font-bold text-slate-900">Telegram NOC Alerts</div>
+              <div className="text-[11px] text-slate-500 leading-normal">
+                Automatic dispatch to assigned field technicians.
               </div>
             </div>
 
-            {/* Feature 3: Area Assignment */}
-            <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-2xs space-y-2">
-              <div className="h-9 w-9 rounded-xl bg-emerald-50 text-[#237227] flex items-center justify-center">
-                <Building2 className="h-4 w-4" />
+            <div className="p-3.5 rounded-2xl bg-white/85 backdrop-blur-sm border border-slate-200/80 shadow-2xs space-y-1.5">
+              <div className="h-8 w-8 rounded-xl bg-purple-50 border border-purple-200/60 flex items-center justify-center text-purple-700">
+                <ShieldCheck className="h-4 w-4" />
               </div>
-              <div>
-                <h3 className="text-xs font-bold text-slate-900">Area Assignment</h3>
-                <p className="text-[11px] text-slate-500 leading-relaxed mt-0.5">
-                  Assigned technicians for CDO, Bukidnon, Camiguin, and Lanao.
-                </p>
+              <div className="text-xs font-bold text-slate-900">Role Authorization</div>
+              <div className="text-[11px] text-slate-500 leading-normal">
+                Role-based access control and system audit logging.
               </div>
-            </div>
-          </div>
-
-          {/* Key Uptime & Performance Metrics */}
-          <div className="pt-2 border-t border-slate-200/80 flex flex-wrap items-center gap-6 sm:gap-10 text-xs">
-            <div>
-              <div className="text-lg sm:text-xl font-extrabold text-slate-900">99.8%</div>
-              <div className="text-[11px] text-slate-500 font-medium">Target Uptime SLA</div>
-            </div>
-            <div>
-              <div className="text-lg sm:text-xl font-extrabold text-slate-900">12 Sites</div>
-              <div className="text-[11px] text-slate-500 font-medium">Monitored Facilities</div>
-            </div>
-            <div>
-              <div className="text-lg sm:text-xl font-extrabold text-slate-900">&lt; 30s</div>
-              <div className="text-[11px] text-slate-500 font-medium">Outage Response Speed</div>
-            </div>
-            <div>
-              <div className="text-lg sm:text-xl font-extrabold text-[#237227]">v2.4-PROD</div>
-              <div className="text-[11px] text-slate-500 font-medium">Ruijie Cloud Engine</div>
             </div>
           </div>
         </div>
 
-        {/* RIGHT COLUMN: NATURAL, CLEAN LOGIN CONSOLE (NO SIGNUP) */}
-        <div className="w-full lg:w-5/12 max-w-md">
-          <div className="bg-white rounded-3xl border border-slate-200/90 p-6 sm:p-8 shadow-xl shadow-slate-200/50 space-y-5 text-left">
+        {/* RIGHT COLUMN: SIGN IN & 2FA CARD */}
+        <div className="w-full lg:w-5/12 max-w-md mx-auto lg:max-w-none">
+          <div className="bg-white rounded-3xl p-7 sm:p-9 border border-slate-200/80 shadow-xl shadow-slate-100/70 space-y-6 transition-all" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
             
-            {/* Header: Title & Subtitle */}
-            <div className="space-y-1 text-center sm:text-left">
-              <div className="inline-flex items-center justify-center h-11 w-11 rounded-2xl bg-emerald-50 text-[#237227] mb-2 shadow-2xs">
-                <ShieldCheck className="h-6 w-6" />
-              </div>
-              <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">
-                Console Sign In
+            {/* SIGN IN CREDENTIALS FORM */}
+            <div className="space-y-1.5 text-left">
+              <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
+                Sign In
               </h2>
-              <p className="text-xs text-slate-500 leading-relaxed">
-                Enter your authorized credentials to access the NOC dashboard.
+              <p className="text-xs text-slate-500 font-normal leading-relaxed">
+                Enter your credentials to access the monitoring dashboard.
               </p>
             </div>
 
             {/* Error Message Alert */}
             {errorMessage && (
-              <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200/90 text-rose-800 text-xs font-semibold flex items-start gap-2.5 animate-in fade-in duration-150">
+              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-medium flex items-start gap-2.5 animate-in fade-in duration-150">
                 <AlertCircle className="h-4 w-4 text-rose-600 shrink-0 mt-0.5" />
                 <div className="flex-1 leading-snug">{errorMessage}</div>
               </div>
             )}
 
-            {/* Login Form */}
-            <form onSubmit={handleSubmit} className="space-y-4 pt-1">
-              
-              {/* Work Email / Username */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-700 block">
-                  Official Email / Username
+            <form onSubmit={handleCredentialsSubmit} className="space-y-4 pt-1">
+              {/* Email */}
+              <div className="space-y-1.5 text-left">
+                <label className="text-xs font-medium text-slate-700 block">
+                  Email Address
                 </label>
                 <div className="relative">
                   <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                    <User className="h-4 w-4" />
+                    <Mail className="h-4 w-4" />
                   </span>
                   <input
-                    type="text"
+                    type="email"
                     required
+                    autoComplete="email"
+                    autoCapitalize="none"
+                    spellCheck="false"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    placeholder="Enter official email or username"
-                    className="w-full h-11 pl-10 pr-3.5 text-xs rounded-xl bg-white border border-slate-300 text-slate-900 font-medium placeholder:text-slate-400 focus:outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200 transition-all shadow-2xs"
+                    placeholder="name@dict.gov.ph"
+                    className="w-full h-11 pl-10 pr-3.5 text-xs rounded-xl bg-slate-50/50 hover:bg-white border border-slate-200 focus:border-slate-400 focus:bg-white focus:ring-4 focus:ring-slate-100 text-slate-900 font-normal placeholder:text-slate-400 focus:outline-none transition-all"
                   />
                 </div>
               </div>
 
               {/* Password */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-700 block">
-                  Account Password
+              <div className="space-y-1.5 text-left">
+                <label className="text-xs font-medium text-slate-700 block">
+                  Password
                 </label>
                 <div className="relative">
                   <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
@@ -231,8 +197,8 @@ export const LoginLandingPage: React.FC<LoginLandingPageProps> = ({ onLogin }) =
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Enter account password"
-                    className="w-full h-11 pl-10 pr-10 text-xs rounded-xl bg-white border border-slate-300 text-slate-900 font-medium placeholder:text-slate-400 focus:outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200 transition-all shadow-2xs"
+                    placeholder="Enter your password"
+                    className="w-full h-11 pl-10 pr-10 text-xs rounded-xl bg-slate-50/50 hover:bg-white border border-slate-200 focus:border-slate-400 focus:bg-white focus:ring-4 focus:ring-slate-100 text-slate-900 font-normal placeholder:text-slate-400 focus:outline-none transition-all"
                   />
                   <button
                     type="button"
@@ -245,9 +211,9 @@ export const LoginLandingPage: React.FC<LoginLandingPageProps> = ({ onLogin }) =
                 </div>
               </div>
 
-              {/* Remember Me Toggle */}
+              {/* Remember Me */}
               <div className="flex items-center justify-between pt-0.5 text-xs">
-                <label className="flex items-center gap-2 text-slate-600 font-medium cursor-pointer select-none">
+                <label className="flex items-center gap-2 text-slate-600 font-normal cursor-pointer select-none">
                   <input
                     type="checkbox"
                     checked={rememberMe}
@@ -256,8 +222,6 @@ export const LoginLandingPage: React.FC<LoginLandingPageProps> = ({ onLogin }) =
                   />
                   <span>Keep me signed in</span>
                 </label>
-
-                <span className="text-[11px] text-slate-400">NOC Session</span>
               </div>
 
               {/* Sign In Button */}
@@ -265,25 +229,17 @@ export const LoginLandingPage: React.FC<LoginLandingPageProps> = ({ onLogin }) =
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full h-11 rounded-xl bg-[#237227] hover:bg-[#1b5e20] active:scale-[0.99] text-white font-bold text-xs tracking-wider transition-all flex items-center justify-center gap-2 shadow-xs cursor-pointer disabled:opacity-75"
+                  className="w-full h-11 rounded-xl bg-[#237227] hover:bg-[#1b5e20] active:scale-[0.99] text-white font-semibold text-xs tracking-wider transition-all flex items-center justify-center gap-2 shadow-xs cursor-pointer disabled:opacity-75"
                 >
                   {isLoading ? (
-                    <span className="animate-pulse">Authenticating Session...</span>
+                    <span className="animate-pulse">Signing in...</span>
                   ) : (
-                    <>
-                      <span>Sign In to Dashboard</span>
-                      <ArrowRight className="h-4 w-4" />
-                    </>
+                    <span>Sign In</span>
                   )}
                 </button>
               </div>
-
-              {/* Security & Authorized Personnel Notice */}
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-center gap-2 text-[11px] text-slate-400 text-center">
-                <ShieldCheck className="h-3.5 w-3.5 text-[#237227] shrink-0" />
-                <span>Authorized Government Personnel Only • Region 10</span>
-              </div>
             </form>
+
           </div>
         </div>
       </main>

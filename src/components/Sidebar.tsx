@@ -7,7 +7,8 @@ import {
   Send, 
   AlertCircle, 
   Settings, 
-  LogOut 
+  LogOut,
+  Lock
 } from 'lucide-react';
 import { t } from '@/utils/i18n';
 
@@ -22,6 +23,7 @@ interface SidebarProps {
   onOpenActivityLogs: () => void;
   onOpenSettings?: () => void;
   onLogout: () => void;
+  onLock?: () => void;
   activityCount: number;
   language?: string;
   currentUser?: { fullName?: string; email?: string; role?: string } | null;
@@ -33,6 +35,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   activeSection,
   onSelectSection,
   onLogout,
+  onLock,
   activityCount,
   language = 'English',
   currentUser,
@@ -174,15 +177,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={onLogout}
-            title={t('navSignOut', language)}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer shrink-0"
-            aria-label="Sign out"
-          >
-            <LogOut className="h-4 w-4" />
-          </button>
+          <div className="flex items-center gap-0.5 shrink-0">
+            {onLock && (
+              <button
+                type="button"
+                onClick={onLock}
+                title="Lock Session (Auto-Lock)"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 transition-colors cursor-pointer"
+                aria-label="Lock screen"
+              >
+                <Lock className="h-4 w-4" />
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onLogout}
+              title={t('navSignOut', language)}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+              aria-label="Sign out"
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
+          </div>
         </div>
       </div>
     </aside>

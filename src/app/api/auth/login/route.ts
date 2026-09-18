@@ -14,18 +14,22 @@ export async function POST(req: NextRequest) {
 
     const authResult = await db.users.authenticate(username, password);
 
-    if (!authResult.success) {
+    if (!authResult.success || !authResult.user) {
       return NextResponse.json(
         { success: false, message: authResult.message || 'Invalid credentials. Please verify your username/email and password.' },
         { status: 401 }
       );
     }
 
-    // Log successful console operator authentication
+    // Direct authentication (OTP disabled)
     await db.logs.add({
       type: 'system',
       title: 'Console Operator Login',
-      description: `User ${authResult.user?.fullName} (${authResult.user?.username}) authenticated to Multifactors Sales Monitoring System.`,
+      description: `User ${authResult.user.fullName} (${authResult.user.username}) authenticated directly to the NOC command center.`,
+      siteName: 'Central NOC Command Portal',
+      siteCode: 'NOC-HQ',
+      personName: authResult.user.fullName,
+      telegramUsername: authResult.user.username,
       severity: 'info',
       timestamp: 'Just now',
     });

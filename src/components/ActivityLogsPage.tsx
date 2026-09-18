@@ -22,7 +22,11 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
-  ChevronsRight
+  ChevronsRight,
+  Building2,
+  Server,
+  User,
+  Cpu
 } from 'lucide-react';
 import { ActivityLog } from '@/types/dashboard';
 
@@ -32,6 +36,14 @@ interface ActivityLogsPageProps {
 }
 
 export type LogFilterCategory = 'all' | 'outage' | 'telegram' | 'assignment' | 'recovery' | 'system';
+
+// Helper to strip any icons/emojis from activity details title & description
+const stripIcons = (str?: string) => {
+  if (!str) return '';
+  return str
+    .replace(/[\p{Extended_Pictographic}\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}]/gu, '')
+    .trim();
+};
 
 export const ActivityLogsPage: React.FC<ActivityLogsPageProps> = ({
   logs,
@@ -81,7 +93,7 @@ export const ActivityLogsPage: React.FC<ActivityLogsPageProps> = ({
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState<number>(1);
-  const [rowsPerPage, setRowsPerPage] = useState<number>(10);
+  const [rowsPerPage, setRowsPerPage] = useState<number>(6);
 
   const totalPages = Math.ceil(filteredLogs.length / rowsPerPage) || 1;
 
@@ -167,19 +179,19 @@ export const ActivityLogsPage: React.FC<ActivityLogsPageProps> = ({
 
   return (
     <div 
-      className="flex-1 min-h-0 w-full flex flex-col gap-4 overflow-y-auto px-4 sm:px-6 py-4"
+      className="flex-1 min-h-0 w-full flex flex-col gap-3 overflow-hidden h-full"
       style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}
     >
       {/* 1. TOP HEADER SECTION */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-5 shadow-2xs shrink-0">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 bg-white border border-slate-200/80 rounded-2xl px-5 py-3 shadow-2xs shrink-0">
         <div>
           <div className="flex items-center gap-2">
             <span className="h-2.5 w-2.5 rounded-full bg-[#237227]" />
-            <h2 className="text-lg font-bold text-slate-900 tracking-tight">
+            <h2 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
               Activity Logs
             </h2>
           </div>
-          <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
+          <p className="text-xs text-slate-500 mt-0.5">
             Chronological audit trail of system activities, automated Telegram downtime alerts, and personnel assignments.
           </p>
         </div>
@@ -190,7 +202,7 @@ export const ActivityLogsPage: React.FC<ActivityLogsPageProps> = ({
             <button
               type="button"
               onClick={onClearLogs}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-600 text-xs font-semibold cursor-pointer transition-colors shadow-2xs"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-600 text-xs font-semibold cursor-pointer transition-colors shadow-2xs"
             >
               <Trash2 className="h-3.5 w-3.5 text-slate-400" />
               <span>Clear History</span>
@@ -200,12 +212,12 @@ export const ActivityLogsPage: React.FC<ActivityLogsPageProps> = ({
       </div>
 
       {/* 2. UNIFIED ACTIVITY LOGS TABLE CARD */}
-      <div className="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden flex flex-col">
+      <div className="flex-1 min-h-0 bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden flex flex-col justify-between">
         {/* Table Top Header Bar (Title, Count on Left; Dropdown Sorting/Filter & Search on Right) */}
-        <div className="border-b border-slate-100 bg-white px-5 sm:px-6 py-3.5 shrink-0 flex flex-wrap items-center justify-between gap-3.5">
+        <div className="border-b border-slate-100 bg-white px-5 sm:px-6 py-2.5 shrink-0 flex flex-wrap items-center justify-between gap-3">
           {/* Left: Title & Count */}
           <div className="flex items-center gap-2">
-            <h3 className="text-base font-bold text-slate-800 tracking-tight">
+            <h3 className="text-sm sm:text-base font-bold text-slate-800 tracking-tight">
               All Logs
             </h3>
             <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200/60">
@@ -217,7 +229,7 @@ export const ActivityLogsPage: React.FC<ActivityLogsPageProps> = ({
           <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
             {/* Search Input */}
             <div className="relative flex-1 sm:w-64">
-              <Search className="h-4 w-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <Search className="h-3.5 w-3.5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
                 type="text"
                 value={searchQuery}
@@ -226,7 +238,7 @@ export const ActivityLogsPage: React.FC<ActivityLogsPageProps> = ({
                   setCurrentPage(1);
                 }}
                 placeholder="Search logs, site, person..."
-                className="w-full h-9 rounded-xl border border-slate-200 bg-slate-50/70 pl-9.5 pr-3.5 text-xs font-medium text-slate-800 placeholder-slate-400 hover:border-slate-300 focus:outline-none focus:border-[#237227] focus:bg-white transition-all shadow-2xs"
+                className="w-full h-8.5 rounded-xl border border-slate-200 bg-slate-50/70 pl-9 pr-3.5 text-xs font-medium text-slate-800 placeholder-slate-400 hover:border-slate-300 focus:outline-none focus:border-[#237227] focus:bg-white transition-all shadow-2xs"
                 style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}
               />
             </div>
@@ -239,7 +251,7 @@ export const ActivityLogsPage: React.FC<ActivityLogsPageProps> = ({
                   setActiveCategory(e.target.value as LogFilterCategory);
                   setCurrentPage(1);
                 }}
-                className="h-9 rounded-xl border border-slate-200 bg-slate-50/80 px-3 pr-8 text-xs font-bold text-slate-700 hover:border-slate-300 focus:outline-none focus:border-[#237227] focus:bg-white cursor-pointer shadow-2xs transition-all appearance-none"
+                className="h-8.5 rounded-xl border border-slate-200 bg-slate-50/80 px-3 pr-8 text-xs font-bold text-slate-700 hover:border-slate-300 focus:outline-none focus:border-[#237227] focus:bg-white cursor-pointer shadow-2xs transition-all appearance-none"
                 style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}
               >
                 <option value="all">All Activities ({stats.total})</option>
@@ -255,109 +267,105 @@ export const ActivityLogsPage: React.FC<ActivityLogsPageProps> = ({
         </div>
 
         {filteredLogs.length === 0 ? (
-          <div className="py-16 px-4 text-center flex flex-col items-center justify-center">
-            <div className="h-12 w-12 rounded-2xl bg-[#237227] flex items-center justify-center text-white mb-3 shadow-2xs">
-              <Activity className="h-6 w-6 text-white" />
+          <div className="flex-1 min-h-0 py-12 px-4 text-center flex flex-col items-center justify-center">
+            <div className="h-11 w-11 rounded-2xl bg-[#237227] flex items-center justify-center text-white mb-2.5 shadow-2xs">
+              <Activity className="h-5 w-5 text-white" />
             </div>
             <h3 className="text-sm font-semibold text-slate-800">No activity logs recorded</h3>
-            <p className="mt-1 text-xs text-slate-500 max-w-sm">
+            <p className="mt-0.5 text-xs text-slate-500 max-w-sm">
               No matching activity events or audit logs found for your filter criteria.
             </p>
           </div>
         ) : (
           <>
-            <div className="overflow-x-auto">
+            <div className="flex-1 min-h-0 overflow-hidden">
               <table className="w-full table-fixed text-left border-collapse" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
                 <colgroup>
-                  <col className="w-[26%]" />
-                  <col className="w-[20%]" />
-                  <col className="w-[20%]" />
-                  <col className="w-[18%]" />
-                  <col className="w-[16%]" />
+                  <col className="w-1/5" />
+                  <col className="w-1/5" />
+                  <col className="w-1/5" />
+                  <col className="w-1/5" />
+                  <col className="w-1/5" />
                 </colgroup>
                 <thead>
                   <tr className="border-b border-slate-200/80 bg-slate-50/80 text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                    <th className="py-3.5 px-5 sm:px-6">ACTIVITY DETAILS</th>
-                    <th className="py-3.5 px-4 sm:px-6">SITE / DESIGNATED AREA</th>
-                    <th className="py-3.5 px-4 sm:px-6">ASSIGNED RESPONDER</th>
-                    <th className="py-3.5 px-4 sm:px-6">ACTIVITIES</th>
-                    <th className="py-3.5 px-5 sm:px-6 text-right">TIMESTAMP</th>
+                    <th className="py-2.5 px-4 sm:px-5">ACTIVITY DETAILS</th>
+                    <th className="py-2.5 px-4 sm:px-5">SITE / DESIGNATED AREA</th>
+                    <th className="py-2.5 px-4 sm:px-5">ASSIGNED RESPONDER</th>
+                    <th className="py-2.5 px-4 sm:px-5">ACTIVITIES</th>
+                    <th className="py-2.5 px-4 sm:px-5 text-right">TIMESTAMP</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-xs sm:text-sm">
                   {paginatedLogs.map((log) => (
                     <tr key={log.id} className="hover:bg-slate-50/70 transition-colors">
                       {/* 1. Activity Details */}
-                      <td className="py-3.5 px-5 sm:px-6 align-middle">
+                      <td className="py-2 sm:py-2.5 px-4 sm:px-5 align-middle">
                         <div className="flex flex-col gap-0.5 pr-2">
-                          <span className="font-bold text-slate-800 text-sm leading-snug truncate" title={log.title}>
-                            {log.title}
+                          <span className="font-bold text-slate-900 text-xs sm:text-sm leading-tight truncate" title={stripIcons(log.title)}>
+                            {stripIcons(log.title)}
                           </span>
-                          <p className="text-xs text-slate-500 leading-relaxed truncate" title={log.description}>
-                            {log.description}
+                          <p className="text-[11px] sm:text-xs text-slate-500 leading-snug font-normal line-clamp-1" title={stripIcons(log.description)}>
+                            {stripIcons(log.description)}
                           </p>
                         </div>
                       </td>
 
                       {/* 2. Site / Designated Area */}
-                      <td className="py-3.5 px-4 sm:px-6 align-middle">
+                      <td className="py-2 sm:py-2.5 px-4 sm:px-5 align-middle">
                         {log.siteName ? (
-                          <div className="flex flex-col gap-0.5">
-                            <div className="flex items-center gap-2">
-                              <div className="h-7 w-7 rounded-lg bg-[#237227] text-white flex items-center justify-center shrink-0 shadow-2xs">
-                                <MapPin className="h-4 w-4 text-white" />
-                              </div>
-                              <div className="flex flex-col min-w-0">
-                                <span className="font-bold text-slate-900 text-sm truncate">{log.siteName}</span>
-                                {log.siteCode && (
-                                  <span className="font-mono text-[11px] text-slate-400">
-                                    {log.siteCode}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
+                          <div className="inline-flex items-center px-2.5 py-1 rounded-md bg-slate-50 border border-slate-200/90 w-fit shadow-2xs">
+                            <span 
+                              className="font-bold text-slate-800 text-xs truncate max-w-[140px]"
+                              title={log.siteCode ? `${log.siteName} (${log.siteCode})` : log.siteName}
+                            >
+                              {log.siteName}
+                            </span>
                           </div>
                         ) : (
-                          <span className="text-slate-400 text-xs pl-2">—</span>
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-slate-100 text-slate-500 text-xs font-semibold border border-slate-200/80">
+                            N/A
+                          </span>
                         )}
                       </td>
 
-                      {/* 3. Assigned Responder / Telegram */}
-                      <td className="py-3.5 px-4 sm:px-6 align-middle">
-                        {log.personName || log.telegramUsername ? (
-                          <div className="flex flex-col gap-1">
-                            {log.personName && (
-                              <span className="font-bold text-slate-800 text-sm truncate">
-                                {log.personName}
-                              </span>
-                            )}
-                            {log.telegramUsername && (
-                              <div className="inline-flex items-center gap-1.5 bg-slate-50/90 px-2.5 py-1 rounded-lg border border-slate-200/90 w-fit shadow-2xs">
-                                <Send className="h-3.5 w-3.5 text-[#0088cc] shrink-0" />
-                                <a
-                                  href={/^\d+$/.test(log.telegramUsername) ? "https://t.me/multifactors_bot" : `https://t.me/${log.telegramUsername.replace(/^@/, '')}`}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="font-mono text-xs font-bold text-slate-800 hover:text-[#0088cc] hover:underline truncate max-w-[130px]"
-                                >
-                                  {/^\d+$/.test(log.telegramUsername) ? `ID: ${log.telegramUsername}` : `@${log.telegramUsername.replace(/^@/, '')}`}
-                                </a>
-                                <ExternalLink className="h-2.5 w-2.5 text-slate-400 opacity-60" />
-                              </div>
-                            )}
+                      {/* 3. Assigned Responder */}
+                      <td className="py-2 sm:py-2.5 px-4 sm:px-5 align-middle">
+                        {log.telegramUsername ? (
+                          <div className="inline-flex items-center gap-1.5 bg-slate-50 px-2.5 py-1 rounded-md border border-slate-200/90 w-fit shadow-2xs">
+                            <Send className="h-3 w-3 text-[#0088cc] shrink-0" />
+                            <a
+                              href={/^\d+$/.test(log.telegramUsername) ? "https://t.me/multifactors_bot" : `https://t.me/${log.telegramUsername.replace(/^@/, '')}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-xs font-bold text-slate-800 hover:text-[#0088cc] hover:underline truncate max-w-[130px]"
+                              title={log.personName ? `${log.personName} (@${log.telegramUsername.replace(/^@/, '')})` : `@${log.telegramUsername.replace(/^@/, '')}`}
+                            >
+                              {/^\d+$/.test(log.telegramUsername) ? `ID: ${log.telegramUsername}` : `@${log.telegramUsername.replace(/^@/, '')}`}
+                            </a>
+                            <ExternalLink className="h-2.5 w-2.5 text-slate-400 opacity-60 shrink-0" />
+                          </div>
+                        ) : log.personName ? (
+                          <div className="inline-flex items-center gap-1.5 bg-slate-50 px-2.5 py-1 rounded-md border border-slate-200/90 w-fit shadow-2xs">
+                            <Send className="h-3 w-3 text-[#0088cc] shrink-0" />
+                            <span className="text-xs font-bold text-slate-800 truncate max-w-[130px]" title={log.personName}>
+                              {log.personName}
+                            </span>
                           </div>
                         ) : (
-                          <span className="text-slate-400 text-xs pl-2">—</span>
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-slate-100 text-slate-500 text-xs font-semibold border border-slate-200/80">
+                            N/A
+                          </span>
                         )}
                       </td>
 
                       {/* 4. Activities (Event Badge) */}
-                      <td className="py-3.5 px-4 sm:px-6 align-middle whitespace-nowrap">
+                      <td className="py-2 sm:py-2.5 px-4 sm:px-5 align-middle whitespace-nowrap">
                         {getTypeBadge(log.type)}
                       </td>
 
                       {/* 5. Timestamp */}
-                      <td className="py-3.5 px-5 sm:px-6 align-middle text-right whitespace-nowrap">
+                      <td className="py-2 sm:py-2.5 px-4 sm:px-5 align-middle text-right whitespace-nowrap">
                         <div className="inline-flex items-center justify-end gap-1.5 text-xs text-slate-500 font-medium">
                           <Clock className="h-3.5 w-3.5 text-slate-400 shrink-0" />
                           <span>{log.timestamp}</span>
@@ -370,7 +378,7 @@ export const ActivityLogsPage: React.FC<ActivityLogsPageProps> = ({
             </div>
 
             {/* PAGINATION CONTROLS FOOTER */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/70 px-5 sm:px-6 py-3.5 text-xs text-slate-600 shrink-0">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-t border-slate-100 bg-slate-50/70 px-5 sm:px-6 py-2.5 text-xs text-slate-600 shrink-0">
               {/* Left: Summary and Rows per Page */}
               <div className="flex flex-wrap items-center gap-3">
                 <span className="font-medium text-slate-600">
@@ -386,13 +394,12 @@ export const ActivityLogsPage: React.FC<ActivityLogsPageProps> = ({
                       setRowsPerPage(Number(e.target.value));
                       setCurrentPage(1);
                     }}
-                    className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-800 focus:border-[#237227] focus:outline-none cursor-pointer shadow-2xs transition-colors"
+                    className="rounded-lg border border-slate-200 bg-white px-2 py-0.5 text-xs font-semibold text-slate-800 focus:border-[#237227] focus:outline-none cursor-pointer shadow-2xs transition-colors"
                   >
-                    <option value={10}>10</option>
-                    <option value={15}>15</option>
-                    <option value={25}>25</option>
-                    <option value={50}>50</option>
                     <option value={5}>5</option>
+                    <option value={6}>6</option>
+                    <option value={8}>8</option>
+                    <option value={10}>10</option>
                   </select>
                 </div>
               </div>

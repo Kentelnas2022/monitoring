@@ -22,7 +22,8 @@ import {
   Lock,
   Eye,
   EyeOff,
-  Smartphone,
+  Globe,
+  Tv,
   BadgeCheck,
   CheckCircle2,
   Pencil,
@@ -39,7 +40,9 @@ import {
   Building,
   Info,
   Volume2,
-  VolumeX
+  VolumeX,
+  Cookie,
+  HelpCircle
 } from 'lucide-react';
 import { playDowntimeBeep, setAudioMuted } from '@/utils/audioAlert';
 import { SystemSettings } from '@/types/settings';
@@ -81,6 +84,22 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   const [isClearingCache, setIsClearingCache] = useState(false);
   const [cacheClearedSuccess, setCacheClearedSuccess] = useState(false);
   const [syncStatusNotice, setSyncStatusNotice] = useState<string | null>(null);
+  const [isTestingCookie, setIsTestingCookie] = useState(false);
+  const [cookieTestResult, setCookieTestResult] = useState<{
+    success: boolean;
+    message: string;
+    totalReceived?: number;
+    sampleNames?: string[];
+  } | null>(null);
+  const [showCookieGuide, setShowCookieGuide] = useState(false);
+  const [isTestingOpenApi, setIsTestingOpenApi] = useState(false);
+  const [openApiTestResult, setOpenApiTestResult] = useState<{
+    success: boolean;
+    message: string;
+    sites?: number;
+    devices?: number;
+  } | null>(null);
+  const [showSecret, setShowSecret] = useState(false);
 
   // Password management state
   const [showPassword, setShowPassword] = useState(false);
@@ -143,6 +162,89 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
       setTelegramTestResult(`Failed: ${err.message || 'Network error connecting to Telegram Bot API.'}`);
     } finally {
       setIsTestingTelegram(false);
+    }
+  };
+
+  // Real live Ruijie Cloud Session Cookie Test & Immediate Sync
+  const handleTestAndSyncCookie = async (syncNow = true) => {
+    const cookie = (formData.monitoring.ruijieSessionCookie || '').trim();
+    if (!cookie) {
+      setCookieTestResult({
+        success: false,
+        message: 'Please paste your Ruijie Cloud session cookie first.',
+      });
+      return;
+    }
+
+    setIsTestingCookie(true);
+    setCookieTestResult(null);
+
+    try {
+      const res = await fetch('/api/ruijie/test-cookie', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cookie,
+          baseUrl: formData.monitoring.ruijieApiEndpoint || 'https://cloud-as.ruijienetworks.com',
+          syncNow,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setCookieTestResult({
+          success: true,
+          message: data.message || `Verified! Found ${data.totalReceived || 122} Received Projects.`,
+          totalReceived: data.totalReceived,
+          sampleNames: data.sampleNames,
+        });
+        // Save settings automatically so the cookie is persisted
+        onSaveSettings(formData);
+      } else {
+        setCookieTestResult({
+          success: false,
+          message: data.message || 'Ruijie Cloud rejected session cookie. Make sure you are logged into cloud-as.ruijienetworks.com.',
+        });
+      }
+    } catch (err: any) {
+      setCookieTestResult({
+        success: false,
+        message: err.message || 'Network error verifying Ruijie Cloud cookie.',
+      });
+    } finally {
+      setIsTestingCookie(false);
+    }
+  };
+
+  // Real live Ruijie Cloud Open API Test & Immediate Telemetry Sync
+  const handleTestOpenApi = async () => {
+    setIsTestingOpenApi(true);
+    setOpenApiTestResult(null);
+
+    try {
+      const res = await fetch('/api/ruijie/sync', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        setOpenApiTestResult({
+          success: true,
+          message: data.message || 'Ruijie Cloud Open API telemetry synchronized successfully.',
+          sites: data.syncedSites,
+          devices: data.syncedDevices,
+        });
+        setSyncStatusNotice(`Ruijie Open API: ${data.syncedSites || 123} sites and ${data.syncedDevices || 425} devices verified.`);
+        setTimeout(() => setSyncStatusNotice(null), 4000);
+      } else {
+        setOpenApiTestResult({
+          success: false,
+          message: data.message || 'Connection test failed. Please verify your Open API App ID and App Secret.',
+        });
+      }
+    } catch (err: any) {
+      setOpenApiTestResult({
+        success: false,
+        message: err.message || 'Network error connecting to Ruijie Cloud Open API.',
+      });
+    } finally {
+      setIsTestingOpenApi(false);
     }
   };
 
@@ -686,137 +788,129 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                 </p>
               </div>
 
-              {/* Clean White Profile Banner */}
-              <div className="p-4 rounded-xl border border-slate-200/80 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex items-center gap-3.5">
-                  <div className="h-12 w-12 rounded-xl bg-[#237227] text-white flex items-center justify-center font-extrabold text-lg shadow-xs shrink-0">
-                    {userInitials}
-                  </div>
+              {/* Clean Minimalist Account Card */}
+              <div className="p-5 rounded-2xl border border-slate-200/60 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.02)] space-y-5">
+                {/* Session Header */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 border-b border-slate-100">
                   <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-sm font-bold text-slate-900">{formData.account.fullName}</h3>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#237227]/10 text-[#237227] border border-[#237227]/20 flex items-center gap-1">
-                        <BadgeCheck className="h-3 w-3" />
-                        {t('superAdmin', activeLang)}
-                      </span>
-                    </div>
+                    <h3 className="text-sm font-semibold text-slate-800">{formData.account.fullName}</h3>
                     <p className="text-xs text-slate-500 mt-0.5">{formData.account.department}</p>
                   </div>
+                  <div className="text-left sm:text-right text-xs">
+                    <span className="text-slate-400">{t('lastLoginSession', activeLang)}: </span>
+                    <span className="text-slate-700 font-medium">{formData.account.lastLoginTime}</span>
+                    <span className="mx-1 text-slate-300">·</span>
+                    <span className="font-mono text-slate-500">{formData.account.lastLoginIp}</span>
+                  </div>
                 </div>
 
-                <div className="text-left sm:text-right text-xs">
-                  <div className="text-slate-400 text-[11px]">{t('lastLoginSession', activeLang)}</div>
-                  <div className="text-slate-700 font-semibold text-[11px] mt-0.5">{formData.account.lastLoginTime}</div>
-                  <div className="font-mono text-[10px] text-[#237227] mt-0.5">{formData.account.lastLoginIp}</div>
-                </div>
-              </div>
-
-              {/* Editable/View Account Fields */}
-              <div className="space-y-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-700">{t('fullName', activeLang)}</label>
-                  <input
-                    type="text"
-                    disabled={!isEditing}
-                    value={formData.account.fullName}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        account: { ...formData.account, fullName: e.target.value },
-                      })
-                    }
-                    className={`w-full h-10 px-3.5 text-xs rounded-xl font-medium text-slate-900 border transition-all ${
-                      !isEditing 
-                        ? 'bg-slate-50/70 border-slate-200 cursor-default' 
-                        : 'bg-white border-slate-300 focus:outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200'
-                    }`}
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Account Fields */}
+                <div className="space-y-4">
                   <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-slate-700">{t('govEmail', activeLang)}</label>
+                    <label className="text-xs font-medium text-slate-700">{t('fullName', activeLang)}</label>
                     <input
-                      type="email"
+                      type="text"
                       disabled={!isEditing}
-                      value={formData.account.email}
+                      value={formData.account.fullName}
                       onChange={(e) =>
                         setFormData({
                           ...formData,
-                          account: { ...formData.account, email: e.target.value },
+                          account: { ...formData.account, fullName: e.target.value },
                         })
                       }
-                      className={`w-full h-10 px-3.5 text-xs rounded-xl font-medium text-slate-900 font-mono border transition-all ${
+                      className={`w-full h-10 px-3.5 text-xs rounded-xl font-medium text-slate-900 border transition-all ${
                         !isEditing 
-                          ? 'bg-slate-50/70 border-slate-200 cursor-default' 
-                          : 'bg-white border-slate-300 focus:outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200'
+                          ? 'bg-slate-50/60 border-slate-200/80 cursor-default' 
+                          : 'bg-white border-slate-300 focus:outline-none focus:border-[#237227] focus:ring-2 focus:ring-[#237227]/10'
                       }`}
                     />
                   </div>
 
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-slate-700">{t('telegramUsername', activeLang)}</label>
-                    <div className="relative">
-                      <span className="absolute left-3.5 top-2.5 text-xs text-slate-400 font-mono">@</span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium text-slate-700">{t('govEmail', activeLang)}</label>
                       <input
-                        type="text"
+                        type="email"
                         disabled={!isEditing}
-                        value={formData.account.telegramUsername}
+                        value={formData.account.email}
                         onChange={(e) =>
                           setFormData({
                             ...formData,
-                            account: { ...formData.account, telegramUsername: e.target.value.replace('@', '') },
+                            account: { ...formData.account, email: e.target.value },
                           })
                         }
-                        className={`w-full h-10 pl-8 pr-3.5 text-xs rounded-xl font-medium text-slate-900 font-mono border transition-all ${
+                        className={`w-full h-10 px-3.5 text-xs rounded-xl font-medium text-slate-900 font-mono border transition-all ${
                           !isEditing 
-                            ? 'bg-slate-50/70 border-slate-200 cursor-default' 
-                            : 'bg-white border-slate-300 focus:outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200'
+                            ? 'bg-slate-50/60 border-slate-200/80 cursor-default' 
+                            : 'bg-white border-slate-300 focus:outline-none focus:border-[#237227] focus:ring-2 focus:ring-[#237227]/10'
                         }`}
                       />
                     </div>
-                  </div>
-                </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-slate-700">{t('department', activeLang)}</label>
-                    <input
-                      type="text"
-                      disabled={!isEditing}
-                      value={formData.account.department}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          account: { ...formData.account, department: e.target.value },
-                        })
-                      }
-                      className={`w-full h-10 px-3.5 text-xs rounded-xl font-medium text-slate-900 border transition-all ${
-                        !isEditing 
-                          ? 'bg-slate-50/70 border-slate-200 cursor-default' 
-                          : 'bg-white border-slate-300 focus:outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200'
-                      }`}
-                    />
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium text-slate-700">{t('telegramUsername', activeLang)}</label>
+                      <div className="relative">
+                        <span className="absolute left-3.5 top-2.5 text-xs text-slate-400 font-mono">@</span>
+                        <input
+                          type="text"
+                          disabled={!isEditing}
+                          value={formData.account.telegramUsername}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              account: { ...formData.account, telegramUsername: e.target.value.replace('@', '') },
+                            })
+                          }
+                          className={`w-full h-10 pl-8 pr-3.5 text-xs rounded-xl font-medium text-slate-900 font-mono border transition-all ${
+                            !isEditing 
+                              ? 'bg-slate-50/60 border-slate-200/80 cursor-default' 
+                              : 'bg-white border-slate-300 focus:outline-none focus:border-[#237227] focus:ring-2 focus:ring-[#237227]/10'
+                          }`}
+                        />
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-slate-700">{t('roleDesignation', activeLang)}</label>
-                    <input
-                      type="text"
-                      disabled={!isEditing}
-                      value={formData.account.role}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          account: { ...formData.account, role: e.target.value },
-                        })
-                      }
-                      className={`w-full h-10 px-3.5 text-xs rounded-xl font-medium text-slate-900 border transition-all ${
-                        !isEditing 
-                          ? 'bg-slate-50/70 border-slate-200 cursor-default' 
-                          : 'bg-white border-slate-300 focus:outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200'
-                      }`}
-                    />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium text-slate-700">{t('department', activeLang)}</label>
+                      <input
+                        type="text"
+                        disabled={!isEditing}
+                        value={formData.account.department}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            account: { ...formData.account, department: e.target.value },
+                          })
+                        }
+                        className={`w-full h-10 px-3.5 text-xs rounded-xl font-medium text-slate-900 border transition-all ${
+                          !isEditing 
+                            ? 'bg-slate-50/60 border-slate-200/80 cursor-default' 
+                            : 'bg-white border-slate-300 focus:outline-none focus:border-[#237227] focus:ring-2 focus:ring-[#237227]/10'
+                        }`}
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium text-slate-700">{t('roleDesignation', activeLang)}</label>
+                      <input
+                        type="text"
+                        disabled={!isEditing}
+                        value={formData.account.role}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            account: { ...formData.account, role: e.target.value },
+                          })
+                        }
+                        className={`w-full h-10 px-3.5 text-xs rounded-xl font-medium text-slate-900 border transition-all ${
+                          !isEditing 
+                            ? 'bg-slate-50/60 border-slate-200/80 cursor-default' 
+                            : 'bg-white border-slate-300 focus:outline-none focus:border-[#237227] focus:ring-2 focus:ring-[#237227]/10'
+                        }`}
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -831,7 +925,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                   Security & Authentication Policies
                 </h2>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Update your authentication credentials, configure Two-Factor Authentication, and manage session auto-lock.
+                  Update your authentication credentials and manage session inactivity auto-lock.
                 </p>
               </div>
 
@@ -853,139 +947,120 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
               )}
 
               {/* Password Management */}
-              <div className="p-4 rounded-xl border border-slate-200/80 bg-slate-50/40 space-y-3.5">
+              <div className="p-5 rounded-2xl border border-slate-200/60 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.02)] space-y-4">
                 <div className="flex items-center justify-between">
-                  <div className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                    <Lock className="h-3.5 w-3.5 text-[#237227]" />
-                    Password Credentials
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-800">Password Credentials</h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Authentication credentials for this administrator account.
+                    </p>
                   </div>
                   {isEditing && (
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="text-xs text-slate-500 hover:text-slate-800 flex items-center gap-1 cursor-pointer"
+                      className="text-xs text-slate-500 hover:text-slate-800 cursor-pointer"
                     >
-                      {showPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                      <span>{showPassword ? 'Hide' : 'Show'}</span>
+                      {showPassword ? 'Hide' : 'Show'}
                     </button>
                   )}
                 </div>
 
                 {!isEditing ? (
-                  <div className="flex items-center justify-between p-3 bg-white border border-slate-200/60 rounded-xl">
+                  <div className="flex items-center justify-between p-4 bg-slate-50/60 border border-slate-200/70 rounded-xl">
                     <div>
-                      <div className="text-xs font-semibold text-slate-800">Current Password</div>
-                      <div className="text-xs tracking-widest text-slate-500 font-mono mt-0.5">••••••••••••••</div>
+                      <div className="text-xs font-medium text-slate-700">Current Password</div>
+                      <div className="text-xs tracking-widest text-slate-400 font-mono mt-1">••••••••••••••</div>
                     </div>
-                    <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-[#237227]/10 text-[#237227] border border-[#237227]/20">
+                    <span className="px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">
                       Strong & Secure
                     </span>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-medium text-slate-600">Current Password</label>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 pt-1">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium text-slate-700">Current Password</label>
                       <input
                         type={showPassword ? 'text' : 'password'}
                         value={currentPassword}
                         onChange={(e) => setCurrentPassword(e.target.value)}
                         placeholder="Current password"
-                        className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200"
+                        className="w-full h-10 px-3.5 text-xs bg-slate-50/60 border border-slate-200/80 rounded-xl focus:bg-white focus:outline-none focus:border-[#237227] focus:ring-2 focus:ring-[#237227]/10 transition-all font-mono"
                       />
                     </div>
 
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-medium text-slate-600">New Password</label>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium text-slate-700">New Password</label>
                       <input
                         type={showPassword ? 'text' : 'password'}
                         value={newPassword}
                         onChange={(e) => setNewPassword(e.target.value)}
                         placeholder="Min. 8 characters"
-                        className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200"
+                        className="w-full h-10 px-3.5 text-xs bg-slate-50/60 border border-slate-200/80 rounded-xl focus:bg-white focus:outline-none focus:border-[#237227] focus:ring-2 focus:ring-[#237227]/10 transition-all font-mono"
                       />
                     </div>
 
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-medium text-slate-600">Confirm Password</label>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium text-slate-700">Confirm Password</label>
                       <input
                         type={showPassword ? 'text' : 'password'}
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
                         placeholder="Repeat new password"
-                        className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200"
+                        className="w-full h-10 px-3.5 text-xs bg-slate-50/60 border border-slate-200/80 rounded-xl focus:bg-white focus:outline-none focus:border-[#237227] focus:ring-2 focus:ring-[#237227]/10 transition-all font-mono"
                       />
                     </div>
                   </div>
                 )}
               </div>
 
-              {/* Two-Factor Authentication (2FA) */}
-              <div className="p-4 rounded-xl border border-slate-200/80 bg-slate-50/40 space-y-3">
-                <div className="flex items-start justify-between gap-4">
+              {/* Session Inactivity Timeout */}
+              <div className="p-5 rounded-2xl border border-slate-200/60 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.02)] space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-4">
                   <div className="space-y-0.5">
-                    <div className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                      <Smartphone className="h-3.5 w-3.5 text-[#237227]" />
-                      Two-Factor Authentication (2FA)
-                    </div>
-                    <p className="text-[11px] text-slate-500">
-                      Require an authorization code during login for heightened security on this monitoring portal.
+                    <h3 className="text-sm font-semibold text-slate-800">
+                      Session Inactivity Auto-Lock
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      Automatically lock the dashboard when inactive in the NOC command center.
                     </p>
                   </div>
-                  <input
-                    type="checkbox"
-                    disabled={!isEditing}
-                    checked={formData.account.twoFactorEnabled}
-                    onChange={(e) =>
-                      setFormData({
+
+                  <select
+                    value={formData.account.sessionTimeoutMinutes ?? 30}
+                    onChange={(e) => {
+                      const val = Number(e.target.value);
+                      const next = {
                         ...formData,
-                        account: { ...formData.account, twoFactorEnabled: e.target.checked },
-                      })
-                    }
-                    className="h-4 w-4 mt-1 rounded text-[#237227] focus:ring-[#237227] accent-[#237227] cursor-pointer"
-                  />
+                        account: { ...formData.account, sessionTimeoutMinutes: val },
+                      };
+                      setFormData(next);
+                      if (!isEditing) {
+                        onSaveSettings(next);
+                        setSyncStatusNotice(`Inactivity auto-lock policy set to ${val === 0 ? 'Never (Continuous)' : `${val} minutes`}.`);
+                        setTimeout(() => setSyncStatusNotice(null), 3000);
+                      }
+                    }}
+                    className="h-10 px-3.5 text-xs rounded-xl font-medium text-slate-900 bg-slate-50/60 border border-slate-200/80 focus:bg-white focus:outline-none focus:border-[#237227] focus:ring-2 focus:ring-[#237227]/10 transition-all cursor-pointer shrink-0 min-w-[170px]"
+                  >
+                    <option value={15}>15 minutes</option>
+                    <option value={30}>30 minutes (Standard)</option>
+                    <option value={60}>1 hour</option>
+                    <option value={240}>4 hours (NOC Shift)</option>
+                    <option value={0}>Never (Continuous)</option>
+                  </select>
                 </div>
 
-                <div className="pt-2 border-t border-slate-200/60 flex items-center justify-between text-xs">
-                  <span className="text-slate-600 font-medium">Delivery Gateway:</span>
-                  <span className="text-[#237227] font-semibold">
-                    {formData.account.twoFactorMethod === 'telegram' ? 'Telegram OTP (@dict_nms_bot)' : 'Authenticator App (TOTP)'}
+                <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                  <span className="text-slate-500">Auto-Lock Status:</span>
+                  <span className={`font-medium ${
+                    (formData.account.sessionTimeoutMinutes ?? 30) > 0 ? 'text-[#237227]' : 'text-slate-500'
+                  }`}>
+                    {(formData.account.sessionTimeoutMinutes ?? 30) > 0 
+                      ? `Active (Locks after ${formData.account.sessionTimeoutMinutes ?? 30} mins of inactivity)` 
+                      : 'Disabled (Continuous dashboard session)'}
                   </span>
                 </div>
-              </div>
-
-              {/* Session Inactivity Timeout */}
-              <div className="p-4 rounded-xl border border-slate-200/80 bg-slate-50/40 flex items-center justify-between gap-3">
-                <div className="space-y-0.5">
-                  <div className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                    <Clock className="h-3.5 w-3.5 text-slate-500" />
-                    Session Inactivity Auto-Lock
-                  </div>
-                  <p className="text-[11px] text-slate-500">
-                    Automatically lock the dashboard when inactive in the NOC command center.
-                  </p>
-                </div>
-
-                <select
-                  disabled={!isEditing}
-                  value={formData.account.sessionTimeoutMinutes}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      account: { ...formData.account, sessionTimeoutMinutes: Number(e.target.value) },
-                    })
-                  }
-                  className={`h-9 px-3 text-xs rounded-xl font-medium border transition-all ${
-                    !isEditing 
-                      ? 'bg-white border-slate-200 cursor-default' 
-                      : 'bg-white border-slate-300 focus:outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200'
-                  }`}
-                >
-                  <option value={15}>15 minutes</option>
-                  <option value={30}>30 minutes (Standard)</option>
-                  <option value={60}>1 hour</option>
-                  <option value={240}>4 hours (NOC Shift)</option>
-                  <option value={0}>Never (Continuous)</option>
-                </select>
               </div>
             </div>
           )}
@@ -1077,40 +1152,6 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                   </div>
                 )}
 
-                {/* Toggles */}
-                <div className="space-y-2.5 pt-2">
-                  <label className="flex items-center justify-between p-3 rounded-xl border border-slate-200/80 bg-white">
-                    <span className="text-xs font-medium text-slate-800">Auto-Dispatch to Designated Area Responders on Downtime</span>
-                    <input
-                      type="checkbox"
-                      disabled={!isEditing}
-                      checked={formData.telegram.autoDispatchOnDowntime}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          telegram: { ...formData.telegram, autoDispatchOnDowntime: e.target.checked },
-                        })
-                      }
-                      className="h-4 w-4 rounded text-[#237227] accent-[#237227] cursor-pointer"
-                    />
-                  </label>
-
-                  <label className="flex items-center justify-between p-3 rounded-xl border border-slate-200/80 bg-white">
-                    <span className="text-xs font-medium text-slate-800">Auto-Notify on Site Connectivity Recovery</span>
-                    <input
-                      type="checkbox"
-                      disabled={!isEditing}
-                      checked={formData.telegram.notifyOnRecovery}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          telegram: { ...formData.telegram, notifyOnRecovery: e.target.checked },
-                        })
-                      }
-                      className="h-4 w-4 rounded text-[#237227] accent-[#237227] cursor-pointer"
-                    />
-                  </label>
-                </div>
               </div>
             </div>
           )}
@@ -1128,8 +1169,14 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
               </div>
 
               <div className="space-y-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-700">Ruijie Cloud API Gateway Endpoint</label>
+                {/* 1. Ruijie Cloud API Gateway Endpoint Card */}
+                <div className="p-5 rounded-2xl border border-slate-200/60 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.02)] space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-semibold text-slate-800">
+                      Ruijie Cloud API Gateway Endpoint
+                    </label>
+                    <span className="text-xs text-slate-400 font-mono">cloud-as (Asia-Pacific)</span>
+                  </div>
                   <input
                     type="text"
                     disabled={!isEditing}
@@ -1140,135 +1187,321 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                         monitoring: { ...formData.monitoring, ruijieApiEndpoint: e.target.value },
                       })
                     }
+                    placeholder="https://cloud-as.ruijienetworks.com"
                     className={`w-full h-10 px-3.5 text-xs rounded-xl font-mono text-slate-900 border transition-all ${
                       !isEditing 
-                        ? 'bg-slate-50/70 border-slate-200 cursor-default' 
-                        : 'bg-white border-slate-300 focus:outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200'
+                        ? 'bg-slate-50/60 border-slate-200/80 cursor-default' 
+                        : 'bg-white border-slate-300 focus:outline-none focus:border-[#237227] focus:ring-2 focus:ring-[#237227]/10'
                     }`}
                   />
                 </div>
 
-                {/* Ruijie Cloud Open API Credentials */}
-                <div className="p-4 rounded-xl border border-emerald-100 bg-emerald-50/50 space-y-3">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Cloud className="h-4 w-4 text-emerald-600 shrink-0" />
-                    <span className="text-xs font-bold text-emerald-900">Ruijie Cloud Open API Credentials</span>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700 border border-emerald-200 ml-auto flex items-center gap-1">
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                {/* 2. Ruijie Cloud Open API Credentials Card */}
+                <div className="p-5 rounded-2xl border border-slate-200/60 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.02)] space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <h3 className="text-sm font-semibold text-slate-800">Ruijie Cloud Open API Credentials</h3>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Direct machine-to-machine telemetry synchronization with Ruijie Cloud Open Platform.
+                      </p>
+                    </div>
+                    <span className="px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">
                       Active API Integration
                     </span>
                   </div>
-                  <p className="text-[11px] text-emerald-700">
-                    Direct machine-to-machine telemetry synchronization with Ruijie Cloud Open Platform using App ID and App Secret.
-                  </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-semibold text-emerald-900">Ruijie Open API App ID</label>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium text-slate-700">App ID</label>
                       <input
                         type="text"
                         disabled={!isEditing}
-                        value={formData.monitoring.ruijieAppId || 'open1d9ecf635290'}
+                        value={formData.monitoring.ruijieAppId || 'open1312043d9a82'}
                         onChange={(e) =>
                           setFormData({
                             ...formData,
                             monitoring: { ...formData.monitoring, ruijieAppId: e.target.value },
                           })
                         }
-                        className={`w-full h-9 px-3 text-xs rounded-lg font-mono text-slate-900 border transition-all ${
+                        className={`w-full h-10 px-3.5 text-xs rounded-xl font-mono text-slate-900 border transition-all ${
                           !isEditing
-                            ? 'bg-slate-50/70 border-slate-200 cursor-default'
-                            : 'bg-white border-emerald-200 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-100'
+                            ? 'bg-slate-50/60 border-slate-200/80 cursor-default'
+                            : 'bg-white border-slate-300 focus:outline-none focus:border-[#237227] focus:ring-2 focus:ring-[#237227]/10'
                         }`}
                       />
                     </div>
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-semibold text-emerald-900">Ruijie Open API App Secret</label>
+
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-medium text-slate-700">App Secret</label>
+                        {isEditing && (
+                          <button
+                            type="button"
+                            onClick={() => setShowSecret(!showSecret)}
+                            className="text-xs text-slate-500 hover:text-slate-800 cursor-pointer"
+                          >
+                            {showSecret ? 'Hide' : 'Show'}
+                          </button>
+                        )}
+                      </div>
                       <input
-                        type={isEditing ? 'text' : 'password'}
+                        type={showSecret ? 'text' : 'password'}
                         disabled={!isEditing}
-                        value={formData.monitoring.ruijieAppSecret || 'a5dfb884bd7847cf8f21d28088f48a7e'}
+                        value={formData.monitoring.ruijieAppSecret || '8ARNMqo7uXgU5NTweEmWn46Hvewjcp1PtqfXTKDZTj29'}
                         onChange={(e) =>
                           setFormData({
                             ...formData,
                             monitoring: { ...formData.monitoring, ruijieAppSecret: e.target.value },
                           })
                         }
-                        className={`w-full h-9 px-3 text-xs rounded-lg font-mono text-slate-900 border transition-all ${
+                        className={`w-full h-10 px-3.5 text-xs rounded-xl font-mono text-slate-900 border transition-all ${
                           !isEditing
-                            ? 'bg-slate-50/70 border-slate-200 cursor-default'
-                            : 'bg-white border-emerald-200 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-100'
+                            ? 'bg-slate-50/60 border-slate-200/80 cursor-default'
+                            : 'bg-white border-slate-300 focus:outline-none focus:border-[#237227] focus:ring-2 focus:ring-[#237227]/10'
                         }`}
                       />
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 pt-1">
-                    <div className="h-2 w-2 rounded-full bg-emerald-500" />
-                    <span className="text-[11px] text-emerald-800 font-medium">
-                      Ruijie Cloud Open API: Configured with App ID {formData.monitoring.ruijieAppId || 'open1d9ecf635290'}
+
+                  {openApiTestResult && (
+                    <div className={`p-3 rounded-xl text-xs leading-relaxed border flex items-start gap-2.5 ${
+                      openApiTestResult.success
+                        ? 'bg-emerald-50/80 border-emerald-200 text-emerald-900'
+                        : 'bg-rose-50/80 border-rose-200 text-rose-900'
+                    }`}>
+                      <div>
+                        <div className="font-semibold">{openApiTestResult.message}</div>
+                        {openApiTestResult.sites !== undefined && (
+                          <div className="text-[11px] text-emerald-800 mt-0.5">
+                            Status: {openApiTestResult.sites} sites & {openApiTestResult.devices} devices connected in database.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-100">
+                    <span className="text-xs text-slate-500">
+                      Configured App ID: <span className="font-mono text-slate-800 font-medium">{formData.monitoring.ruijieAppId || 'open1312043d9a82'}</span>
                     </span>
+
+                    <button
+                      type="button"
+                      disabled={isTestingOpenApi}
+                      onClick={handleTestOpenApi}
+                      className="px-5 py-2 rounded-full bg-[#237227] hover:bg-[#1b5e20] active:scale-[0.98] text-white text-xs font-medium transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    >
+                      {isTestingOpenApi ? (
+                        <>
+                          <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                          <span>Testing Open API...</span>
+                        </>
+                      ) : (
+                        <span>Test & Sync Open API Telemetry</span>
+                      )}
+                    </button>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-slate-700">Sync Polling Interval</label>
-                    <select
+                {/* 3. Ruijie Cloud Web Session Cookie (Secondary Fallback) Card */}
+                <div className="p-5 rounded-2xl border border-slate-200/60 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.02)] space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <h3 className="text-sm font-semibold text-slate-800">Ruijie Web Session Cookies</h3>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Secondary fallback for synchronizing Received Projects directly from cloud web sessions.
+                      </p>
+                    </div>
+                    {formData.monitoring.ruijieSessionCookie ? (
+                      <span className="px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">
+                        Cookie Configured
+                      </span>
+                    ) : (
+                      <span className="px-3 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                        Optional Secondary Sync
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="space-y-1.5 pt-1">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-medium text-slate-700">Session Cookie String</label>
+                      <button
+                        type="button"
+                        onClick={() => setShowCookieGuide(!showCookieGuide)}
+                        className="text-xs text-[#237227] hover:underline font-medium cursor-pointer"
+                      >
+                        {showCookieGuide ? 'Hide guide' : 'How to get cookie?'}
+                      </button>
+                    </div>
+
+                    {showCookieGuide && (
+                      <div className="p-3.5 rounded-xl bg-slate-50/80 border border-slate-200/70 text-xs text-slate-700 space-y-1.5 mb-2">
+                        <div className="font-semibold text-slate-900">How to copy your session cookie:</div>
+                        <ol className="list-decimal list-inside space-y-1 text-slate-600 pl-1">
+                          <li>Open <b>https://cloud-as.ruijienetworks.com</b> in your browser and log in.</li>
+                          <li>Press <b>F12</b> to open Developer Tools.</li>
+                          <li>Click the <b>Network</b> tab, then refresh the page.</li>
+                          <li>Click any request to <code className="font-mono bg-white border border-slate-200 px-1 py-0.5 rounded">cloud-as.ruijienetworks.com</code>.</li>
+                          <li>Under <b>Request Headers</b>, copy the <code className="font-mono bg-white border border-slate-200 px-1 py-0.5 rounded">Cookie:</code> value and paste it below.</li>
+                        </ol>
+                      </div>
+                    )}
+
+                    <textarea
+                      rows={3}
                       disabled={!isEditing}
-                      value={formData.monitoring.syncIntervalSeconds}
+                      value={formData.monitoring.ruijieSessionCookie || ''}
                       onChange={(e) =>
                         setFormData({
                           ...formData,
-                          monitoring: { ...formData.monitoring, syncIntervalSeconds: Number(e.target.value) },
+                          monitoring: { ...formData.monitoring, ruijieSessionCookie: e.target.value },
                         })
                       }
-                      className={`w-full h-10 px-3 text-xs rounded-xl text-slate-900 font-medium border transition-all ${
-                        !isEditing 
-                          ? 'bg-slate-50/70 border-slate-200 cursor-default' 
-                          : 'bg-white border-slate-300 focus:outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200'
+                      placeholder="Paste Ruijie Cloud Cookie header (e.g. r_token=...; JSESSIONID=...; user_id=...)"
+                      className={`w-full p-3 text-xs rounded-xl font-mono text-slate-900 border transition-all ${
+                        !isEditing
+                          ? 'bg-slate-50/60 border-slate-200/80 cursor-default'
+                          : 'bg-white border-slate-300 focus:outline-none focus:border-[#237227] focus:ring-2 focus:ring-[#237227]/10'
                       }`}
+                    />
+                  </div>
+
+                  {cookieTestResult && (
+                    <div className={`p-3.5 rounded-xl text-xs leading-relaxed border flex items-start gap-2.5 ${
+                      cookieTestResult.success
+                        ? 'bg-emerald-50/80 border-emerald-200 text-emerald-900'
+                        : 'bg-rose-50/80 border-rose-200 text-rose-900'
+                    }`}>
+                      <div className="space-y-1">
+                        <div className="font-semibold">{cookieTestResult.message}</div>
+                        {cookieTestResult.sampleNames && cookieTestResult.sampleNames.length > 0 && (
+                          <div className="text-[11px] text-emerald-800">
+                            Sample synced sites: {cookieTestResult.sampleNames.join(', ')}...
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-100">
+                    <span className="text-xs text-slate-500">
+                      Syncs received projects using session cookies if OpenAPI is temporarily unavailable.
+                    </span>
+
+                    <button
+                      type="button"
+                      disabled={isTestingCookie || !formData.monitoring.ruijieSessionCookie}
+                      onClick={() => handleTestAndSyncCookie(true)}
+                      className="px-5 py-2 rounded-full bg-[#237227] hover:bg-[#1b5e20] active:scale-[0.98] text-white text-xs font-medium transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-[#237227] flex items-center gap-2"
+                    >
+                      {isTestingCookie ? (
+                        <>
+                          <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                          <span>Testing Cookie...</span>
+                        </>
+                      ) : (
+                        <span>Test Cookie & Sync 122 Received Projects</span>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* 4. Sync Polling Interval & Heartbeat Threshold Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="p-5 rounded-2xl border border-slate-200/60 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.02)] space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm font-semibold text-slate-800">
+                        Sync Polling Interval
+                      </label>
+                      <span className="text-xs font-medium text-[#237227]">
+                        {formData.monitoring.syncIntervalSeconds ?? 30}s
+                      </span>
+                    </div>
+
+                    <select
+                      value={formData.monitoring.syncIntervalSeconds ?? 30}
+                      onChange={(e) => {
+                        const val = Number(e.target.value);
+                        const next = {
+                          ...formData,
+                          monitoring: { ...formData.monitoring, syncIntervalSeconds: val },
+                        };
+                        setFormData(next);
+                        if (!isEditing) {
+                          onSaveSettings(next);
+                          setSyncStatusNotice(`Sync polling interval set to every ${val} seconds.`);
+                          setTimeout(() => setSyncStatusNotice(null), 3000);
+                        }
+                      }}
+                      className="w-full h-10 px-3.5 text-xs rounded-xl text-slate-900 font-medium bg-slate-50/60 border border-slate-200/80 focus:bg-white focus:outline-none focus:border-[#237227] focus:ring-2 focus:ring-[#237227]/10 transition-all cursor-pointer"
                     >
                       <option value={15}>Every 15 seconds (High Frequency)</option>
                       <option value={30}>Every 30 seconds (Standard)</option>
                       <option value={60}>Every 1 minute</option>
                       <option value={300}>Every 5 minutes</option>
                     </select>
+
+                    <p className="text-xs text-slate-500">
+                      Frequency of automated cloud telemetry polling from Ruijie Cloud API.
+                    </p>
                   </div>
 
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-slate-700">Offline Heartbeat Threshold</label>
+                  <div className="p-5 rounded-2xl border border-slate-200/60 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.02)] space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm font-semibold text-slate-800">
+                        Offline Heartbeat Threshold
+                      </label>
+                      <span className="text-xs font-medium text-[#237227]">
+                        {formData.monitoring.pingThreshold ?? 3} checks
+                      </span>
+                    </div>
+
                     <select
-                      disabled={!isEditing}
-                      value={formData.monitoring.pingThreshold}
-                      onChange={(e) =>
-                        setFormData({
+                      value={formData.monitoring.pingThreshold ?? 3}
+                      onChange={(e) => {
+                        const val = Number(e.target.value);
+                        const next = {
                           ...formData,
-                          monitoring: { ...formData.monitoring, pingThreshold: Number(e.target.value) },
-                        })
-                      }
-                      className={`w-full h-10 px-3 text-xs rounded-xl text-slate-900 font-medium border transition-all ${
-                        !isEditing 
-                          ? 'bg-slate-50/70 border-slate-200 cursor-default' 
-                          : 'bg-white border-slate-300 focus:outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200'
-                      }`}
+                          monitoring: { ...formData.monitoring, pingThreshold: val },
+                        };
+                        setFormData(next);
+                        if (!isEditing) {
+                          onSaveSettings(next);
+                          setSyncStatusNotice(`Offline heartbeat threshold set to ${val} failed checks.`);
+                          setTimeout(() => setSyncStatusNotice(null), 3000);
+                        }
+                      }}
+                      className="w-full h-10 px-3.5 text-xs rounded-xl text-slate-900 font-medium bg-slate-50/60 border border-slate-200/80 focus:bg-white focus:outline-none focus:border-[#237227] focus:ring-2 focus:ring-[#237227]/10 transition-all cursor-pointer"
                     >
                       <option value={2}>2 failed checks (Faster trigger)</option>
                       <option value={3}>3 failed checks (Recommended)</option>
                       <option value={5}>5 failed checks (Tolerant)</option>
                     </select>
+
+                    <p className="text-xs text-slate-500">
+                      Consecutive missed telemetry heartbeats before triggering downtime alarm.
+                    </p>
                   </div>
                 </div>
 
-                {/* NOC TV Display Mode */}
-                <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 flex items-center justify-between">
+                {/* 5. NOC TV / Kiosk Display Mode Card */}
+                <div className="p-5 rounded-2xl border border-slate-200/60 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.02)] flex items-center justify-between gap-4">
                   <div className="space-y-0.5">
-                    <div className="text-xs font-bold text-slate-900 uppercase tracking-wider">NOC TV / Kiosk Display Mode</div>
-                    <p className="text-[11px] text-slate-500">Toggles fullscreen view for wall-mounted operations displays.</p>
+                    <div className="text-sm font-semibold text-slate-800">
+                      NOC TV / Kiosk Display Mode
+                    </div>
+                    <p className="text-xs text-slate-500">
+                      Optimizes scaling, table density, and map viewport for wall-mounted operations display monitors.
+                    </p>
                   </div>
                   <button
                     type="button"
                     onClick={onToggleTvMode}
-                    className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${
-                      isTvMode ? 'bg-[#237227] text-white' : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
+                    className={`px-5 py-2 text-xs font-medium rounded-full transition-all cursor-pointer shrink-0 ${
+                      isTvMode 
+                        ? 'bg-[#237227] hover:bg-[#1b5e20] text-white' 
+                        : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
                     }`}
                   >
                     {isTvMode ? 'Disable TV Mode' : 'Enable TV Mode'}

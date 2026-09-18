@@ -81,9 +81,9 @@ export const ProjectTable: React.FC<ProjectTableProps> = ({
   const counts = useMemo(() => {
     return {
       all: sites.length,
-      allOffline: sites.filter((s) => s.offlineCount === s.deviceCount && s.deviceCount > 0).length,
-      offline: sites.filter((s) => s.offlineCount > 0 && s.offlineCount < s.deviceCount).length,
-      online: sites.filter((s) => s.offlineCount === 0).length,
+      allOffline: sites.filter((s) => (s.offlineCount === s.deviceCount && s.deviceCount > 0) || s.status === 'Downtime').length,
+      offline: sites.filter((s) => s.offlineCount > 0 && s.offlineCount < s.deviceCount && s.status !== 'Downtime').length,
+      online: sites.filter((s) => s.offlineCount === 0 && s.status !== 'Downtime').length,
       onlineDevices: sites.reduce((acc, s) => acc + s.onlineCount, 0),
       offlineDevices: sites.reduce((acc, s) => acc + s.offlineCount, 0),
     };
@@ -97,7 +97,7 @@ export const ProjectTable: React.FC<ProjectTableProps> = ({
   // When any all-offline site appears, automatically reset to page 1 so it is immediately front and center
   const prevAllOfflineCountRef = useRef(0);
   useEffect(() => {
-    const allOfflineCount = sites.filter((s) => s.offlineCount === s.deviceCount && s.deviceCount > 0).length;
+    const allOfflineCount = sites.filter((s) => (s.offlineCount === s.deviceCount && s.deviceCount > 0) || s.status === 'Downtime').length;
     if (allOfflineCount > prevAllOfflineCountRef.current) {
       if (statusFilter === 'Online') {
         handleStatusChange('All');
@@ -110,9 +110,9 @@ export const ProjectTable: React.FC<ProjectTableProps> = ({
   // Filtered and Sorted Sites
   const sortedAndFilteredSites = useMemo(() => {
     const filtered = sites.filter((s) => {
-      const isAllOffline = s.offlineCount === s.deviceCount && s.deviceCount > 0;
-      const isPartialOffline = s.offlineCount > 0 && s.offlineCount < s.deviceCount;
-      const isOnline = s.offlineCount === 0;
+      const isAllOffline = (s.offlineCount === s.deviceCount && s.deviceCount > 0) || s.status === 'Downtime';
+      const isPartialOffline = s.offlineCount > 0 && s.offlineCount < s.deviceCount && s.status !== 'Downtime';
+      const isOnline = s.offlineCount === 0 && s.status !== 'Downtime';
 
       let matchesStatus = true;
       if (statusFilter === 'All Offline') {
@@ -125,15 +125,14 @@ export const ProjectTable: React.FC<ProjectTableProps> = ({
 
       const matchesProvince = selectedProvince === 'All' ? true : s.province === selectedProvince;
       const q = searchQuery.toLowerCase();
-      const dev = s.devices?.[0];
-      const modelStr = (dev?.model || (s.code === 'RJ-9588688' || s.name === 'OJT' ? 'EW1200' : '')).toLowerCase();
-      const snStr = (dev?.serialNumber || (s.code === 'RJ-9588688' || s.name === 'OJT' ? 'G1QH3N710075C' : '')).toLowerCase();
+      const allModelsStr = (s.devices?.map(d => d.model).join(' ') || (s.code === 'RJ-9588688' || s.name === 'OJT' ? 'EW1200' : '')).toLowerCase();
+      const allSnsStr = (s.devices?.map(d => d.serialNumber).join(' ') || (s.code === 'RJ-9588688' || s.name === 'OJT' ? 'G1QH3N710075C' : '')).toLowerCase();
 
       const matchesQuery =
         s.name.toLowerCase().includes(q) ||
         s.code.toLowerCase().includes(q) ||
-        modelStr.includes(q) ||
-        snStr.includes(q) ||
+        allModelsStr.includes(q) ||
+        allSnsStr.includes(q) ||
         (s.municipality && s.municipality.toLowerCase().includes(q)) ||
         (s.landmark && s.landmark.toLowerCase().includes(q)) ||
         s.assignedHandler.name.toLowerCase().includes(q) ||
@@ -193,28 +192,35 @@ export const ProjectTable: React.FC<ProjectTableProps> = ({
   }, [currentPage, totalPages]);
 
   const renderTableCard = () => (
-    <div className="flex flex-col h-full min-h-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xs justify-between" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
+    <div className="group relative flex flex-col h-full min-h-0 overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_2px_8px_-2px_rgba(15,23,42,0.04),0_12px_24px_-8px_rgba(15,23,42,0.04)] justify-between" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
+      {/* Top ambient sheen line */}
+      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent pointer-events-none" />
+
       {/* 1. Unified Seamless Header Bar (Title + Controls in 1 single line) */}
-      <div className="border-b border-slate-100 bg-white px-4 py-3 shrink-0 flex flex-wrap items-center justify-between gap-3">
+      <div className="border-b border-slate-100 bg-white px-5 py-3.5 shrink-0 flex flex-wrap items-center justify-between gap-3">
         {/* Title */}
         <div className="flex items-center gap-2">
-          <h2 className="text-sm sm:text-base font-semibold text-slate-900 tracking-tight">Ruijie Cloud Synced Sites</h2>
-          <span className="text-xs font-normal text-slate-500">
-            ({counts.all})
+          <h2 className="text-sm font-semibold text-slate-900 tracking-tight">Ruijie Cloud Synced Sites</h2>
+          <span className="text-[10px] font-medium px-2.5 py-0.5 rounded-full flex items-center gap-1.5 shadow-xs bg-emerald-50 text-[#237227] border border-emerald-200/80">
+            <span className="relative flex h-1.5 w-1.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-[#237227]" />
+            </span>
+            Live Fleet ({counts.all})
           </span>
         </div>
 
         {/* Controls Flow: 1. Search -> 2. Status Dropdown -> 3. Provinces -> 4. Live Map */}
         <div className="flex flex-wrap items-center gap-2 shrink-0">
           {/* 1. SEARCH INPUT */}
-          <div className="relative w-36 sm:w-44">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+          <div className="relative w-36 sm:w-48">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
             <input
               type="text"
-              placeholder="Search..."
+              placeholder="Search sites..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full h-8.5 rounded-xl border border-slate-200 bg-slate-50/60 pl-8 pr-2.5 text-xs font-medium text-slate-800 placeholder-slate-400 hover:border-slate-300 focus:border-slate-400 focus:bg-white focus:outline-none transition-colors"
+              className="w-full h-9 rounded-full border border-slate-200/90 bg-slate-50/50 pl-9 pr-3.5 text-xs font-medium text-slate-800 placeholder-slate-400 hover:border-slate-300 focus:border-[#237227] focus:bg-white focus:outline-none transition-all"
               style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}
             />
           </div>
@@ -223,7 +229,7 @@ export const ProjectTable: React.FC<ProjectTableProps> = ({
           <select
             value={statusFilter}
             onChange={(e) => handleStatusChange(e.target.value as TableStatusFilter)}
-            className="h-8.5 rounded-xl border border-slate-200 bg-slate-50/60 px-2.5 text-xs font-semibold text-slate-800 hover:border-slate-300 focus:border-slate-400 focus:bg-white focus:outline-none cursor-pointer shrink-0 transition-colors"
+            className="h-9 rounded-full border border-slate-200/90 bg-slate-50/50 px-3.5 text-xs font-medium text-slate-800 hover:border-slate-300 focus:border-[#237227] focus:bg-white focus:outline-none cursor-pointer shrink-0 transition-all"
             style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}
           >
             <option value="All">All ({counts.all})</option>
@@ -236,7 +242,7 @@ export const ProjectTable: React.FC<ProjectTableProps> = ({
           <select
             value={selectedProvince}
             onChange={(e) => setSelectedProvince(e.target.value)}
-            className="h-8.5 rounded-xl border border-slate-200 bg-slate-50/60 px-2.5 text-xs font-semibold text-slate-800 hover:border-slate-300 focus:border-slate-400 focus:bg-white focus:outline-none cursor-pointer shrink-0 transition-colors"
+            className="h-9 rounded-full border border-slate-200/90 bg-slate-50/50 px-3.5 text-xs font-medium text-slate-800 hover:border-slate-300 focus:border-[#237227] focus:bg-white focus:outline-none cursor-pointer shrink-0 transition-all"
             style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}
           >
             {provinces.map((prov) => (
@@ -252,7 +258,7 @@ export const ProjectTable: React.FC<ProjectTableProps> = ({
               type="button"
               onClick={onOpenMonitoring}
               title="Open Live Map Monitoring Page"
-              className="h-8.5 px-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-800 flex items-center gap-1 text-xs font-semibold shadow-2xs transition-all cursor-pointer shrink-0"
+              className="h-9 px-4 rounded-full border border-slate-200/90 bg-white hover:bg-slate-50 text-slate-700 flex items-center text-xs font-medium transition-all cursor-pointer shrink-0 shadow-2xs"
               style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}
             >
               <span>Live Map</span>
@@ -264,14 +270,13 @@ export const ProjectTable: React.FC<ProjectTableProps> = ({
               type="button"
               onClick={onToggleTestOutage}
               title={isTestOutage ? 'Click to restore test site back to online' : 'Simulate 1 site going All Offline'}
-              className={`h-8.5 px-2.5 rounded-xl border flex items-center gap-1 text-xs font-semibold transition-all cursor-pointer shadow-2xs shrink-0 ${
+              className={`h-9 px-4 rounded-full border text-xs font-medium transition-all cursor-pointer shrink-0 shadow-2xs ${
                 isTestOutage
-                  ? 'border-rose-300 bg-rose-50 text-rose-700 hover:bg-rose-100 ring-2 ring-rose-300/40 animate-pulse'
-                  : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-800'
+                  ? 'border-rose-300 bg-rose-50 text-rose-700'
+                  : 'border-slate-200/90 bg-white hover:bg-slate-50 text-slate-700'
               }`}
               style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}
             >
-              <AlertTriangle className={`h-3.5 w-3.5 ${isTestOutage ? 'text-rose-600' : 'text-amber-500'}`} />
               <span>{isTestOutage ? 'Restore' : 'Test Down'}</span>
             </button>
           )}
@@ -289,29 +294,29 @@ export const ProjectTable: React.FC<ProjectTableProps> = ({
               <col className="w-1/6" />
               <col className="w-1/6" />
             </colgroup>
-            <thead className="border-b border-slate-200 bg-slate-50/80 text-xs uppercase tracking-wider text-slate-500 font-bold sticky top-0 z-10">
+            <thead className="border-b border-slate-200/70 bg-slate-50/50 text-[10.5px] uppercase tracking-wider text-slate-400 font-semibold sticky top-0 z-10 backdrop-blur-xs">
               <tr>
-                <th scope="col" className="py-3.5 pl-5 pr-3 font-bold text-left">
+                <th scope="col" className="py-3.5 pl-5 pr-3 font-semibold text-left">
                   PROJECT NAME
                 </th>
-                <th scope="col" className="py-3.5 px-3 font-bold text-left">
+                <th scope="col" className="py-3.5 px-3 font-semibold text-left">
                   LOCATION
                 </th>
-                <th scope="col" className="py-3.5 px-3 font-bold text-left">
+                <th scope="col" className="py-3.5 px-3 font-semibold text-left">
                   MODEL
                 </th>
-                <th scope="col" className="py-3.5 px-3 font-bold text-left">
+                <th scope="col" className="py-3.5 px-3 font-semibold text-left">
                   DEVICE SN
                 </th>
-                <th scope="col" className="py-3.5 px-3 font-bold text-center">
+                <th scope="col" className="py-3.5 px-3 font-semibold text-center">
                   AP / DEVICE
                 </th>
-                <th scope="col" className="py-3.5 px-3 font-bold text-center">
+                <th scope="col" className="py-3.5 px-3 font-semibold text-center">
                   DOWNTIME
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200/60">
+            <tbody className="divide-y divide-slate-100/90">
               {paginatedSites.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="py-16 text-center">
@@ -345,45 +350,46 @@ export const ProjectTable: React.FC<ProjectTableProps> = ({
                   const offlineAps = site.apOffline !== undefined ? site.apOffline : (isAllOffline ? totalAps : site.offlineCount);
                   const onlineAps = Math.max(0, totalAps - offlineAps);
 
-                  const dev = site.devices?.[0];
-                  const modelDisplay = dev?.model || (site.code === 'RJ-9588688' || site.name === 'OJT' ? 'EW1200' : (site.devices && site.devices.length > 0 ? site.devices.map(d => d.model).join(', ') : 'N/A'));
-                  const deviceSnDisplay = dev?.serialNumber || (site.code === 'RJ-9588688' || site.name === 'OJT' ? 'G1QH3N710075C' : (site.devices && site.devices.length > 0 ? site.devices.map(d => d.serialNumber).join(', ') : 'N/A'));
-                  const deviceTypeDisplay = dev?.deviceType || (dev?.model?.startsWith('RG-RAP') ? 'Access Point' : dev?.model?.startsWith('RG-EG') || dev?.model?.includes('EW') ? 'Gateway Router' : 'Hardware Device');
+                  const offlineDev = site.devices?.find((d) => d.status === 'Offline');
+                  const dev = offlineDev || site.devices?.[0];
+                  const modelDisplay = dev?.model || (site.code === 'RJ-9588688' || site.name === 'OJT' ? 'EW1200' : 'Ruijie Device');
+                  const deviceSnDisplay = dev?.serialNumber || (site.code === 'RJ-9588688' || site.name === 'OJT' ? 'G1QH3N710075C' : 'N/A');
+                  const deviceTypeDisplay = dev?.deviceType || (dev?.model?.includes('RAP') ? 'Access Point' : dev?.model?.includes('EG') || dev?.model?.includes('EW') ? 'Gateway Router' : 'Hardware Device');
 
                   return (
                     <tr
                       key={site.id}
                       onClick={() => onSelectSite(site)}
-                      className="bg-white hover:bg-slate-100 transition-colors duration-150 cursor-pointer border-b border-slate-100"
+                      className="group/row bg-white hover:bg-slate-50/70 transition-colors duration-150 cursor-pointer border-b border-slate-100/80"
                       style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}
                     >
                       {/* 1. PROJECT NAME */}
-                      <td className="py-3 pl-5 pr-3 overflow-hidden align-middle">
+                      <td className="py-3.5 pl-5 pr-3 overflow-hidden align-middle">
                         <div className="flex flex-col min-w-0">
                           <span className={`font-semibold text-slate-900 leading-snug truncate ${
-                            isTvMode ? 'text-xl' : 'text-sm sm:text-base'
+                            isTvMode ? 'text-xl' : 'text-sm'
                           }`} title={site.name}>
                             {site.name}
                           </span>
-                          <span className="text-xs text-slate-500 mt-0.5 font-normal">
+                          <span className="text-[11px] font-mono text-slate-400 mt-0.5">
                             {site.code}
                           </span>
                         </div>
                       </td>
 
                       {/* 2. LOCATION */}
-                      <td className="px-3 py-3 overflow-hidden align-middle">
+                      <td className="px-3 py-3.5 overflow-hidden align-middle">
                         <div className="flex flex-col min-w-0">
                           <span 
-                            className={`font-normal truncate text-slate-900 leading-tight ${
-                              isTvMode ? 'text-lg' : 'text-sm'
+                            className={`font-medium truncate text-slate-800 leading-tight ${
+                              isTvMode ? 'text-lg' : 'text-xs sm:text-sm'
                             }`} 
                             title={`${site.landmark ? site.landmark + ' • ' : ''}${site.municipality || site.province}, ${site.province}`}
                           >
                             {site.municipality || site.province}
                           </span>
                           <span 
-                            className="text-xs text-slate-500 truncate mt-0.5 font-normal" 
+                            className="text-[11px] text-slate-400 truncate mt-0.5 font-normal" 
                             title={site.landmark ? `${site.landmark} • ${site.province}` : site.province}
                           >
                             {site.landmark ? `${site.landmark} • ` : ''}{site.province}
@@ -392,49 +398,59 @@ export const ProjectTable: React.FC<ProjectTableProps> = ({
                       </td>
 
                       {/* 3. MODEL */}
-                      <td className="px-3 py-3 overflow-hidden align-middle">
+                      <td className="px-3 py-3.5 overflow-hidden align-middle">
                         <div className="flex flex-col min-w-0">
-                          <span className={`font-semibold text-slate-900 leading-tight truncate ${
-                            isTvMode ? 'text-lg' : 'text-sm'
+                          <span className={`font-semibold text-slate-800 leading-tight truncate ${
+                            isTvMode ? 'text-lg' : 'text-xs sm:text-sm'
                           }`} title={modelDisplay}>
                             {modelDisplay}
                           </span>
-                          <span className="text-xs text-slate-500 mt-0.5 font-normal truncate">
+                          <span className="text-[11px] text-slate-400 mt-0.5 font-normal truncate">
                             {deviceTypeDisplay}
                           </span>
                         </div>
                       </td>
 
                       {/* 4. DEVICE SN */}
-                      <td className="px-3 py-3 overflow-hidden align-middle">
+                      <td className="px-3 py-3.5 overflow-hidden align-middle">
                         <div className="flex flex-col min-w-0">
-                          <span className={`font-mono font-semibold text-slate-900 leading-tight truncate ${
-                            isTvMode ? 'text-lg' : 'text-sm'
+                          <span className={`font-mono font-medium text-slate-700 leading-tight truncate ${
+                            isTvMode ? 'text-lg' : 'text-xs'
                           }`} title={deviceSnDisplay}>
                             {deviceSnDisplay}
                           </span>
-                          <span className="text-xs text-slate-500 mt-0.5 font-normal truncate">
+                          <span className="text-[11px] font-mono text-slate-400 mt-0.5 truncate">
                             {site.lastKnownIp || 'Hardware SN'}
                           </span>
                         </div>
                       </td>
 
                       {/* 5. AP / DEVICE */}
-                      <td className="px-3 py-3 whitespace-nowrap align-middle text-center">
-                        <span className="font-semibold text-slate-900 text-sm sm:text-base">
-                          {isAllOffline ? `0/${totalAps} Online` : `${onlineAps}/${totalAps} Online`}
+                      <td className="px-3 py-3.5 whitespace-nowrap align-middle text-center">
+                        <span className="font-semibold text-slate-800 text-xs sm:text-sm tabular-nums">
+                          {isAllOffline ? `0/${totalAps}` : `${onlineAps}/${totalAps}`}
+                        </span>
+                        <span className="text-[11px] font-normal text-slate-400 ml-1">
+                          Online
                         </span>
                       </td>
 
-                      {/* 6. DOWNTIME */}
-                      <td className="px-3 py-3 whitespace-nowrap align-middle text-center">
+                      {/* 6. DOWNTIME - UNIFORM RED & GREEN BADGES */}
+                      <td className="px-3 py-3.5 whitespace-nowrap align-middle text-center">
                         {isAllOffline || isPartialOffline || site.status === 'Downtime' ? (
-                          <span className="font-semibold text-rose-700 text-sm sm:text-base">
-                            {site.downtimeDuration || 'Active'}
+                          <span className="w-24 h-7 inline-flex items-center justify-center gap-1.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200/80 shadow-2xs">
+                            <span className="relative flex h-1.5 w-1.5 shrink-0">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75" />
+                              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-rose-600" />
+                            </span>
+                            <span className="truncate">{site.downtimeDuration || 'Down'}</span>
                           </span>
                         ) : (
-                          <span className="text-[#237227] font-semibold text-sm sm:text-base">
-                            Online
+                          <span className="w-24 h-7 inline-flex items-center justify-center gap-1.5 rounded-full text-xs font-semibold bg-emerald-50 text-[#237227] border border-emerald-200/80 shadow-2xs">
+                            <span className="relative flex h-1.5 w-1.5 shrink-0">
+                              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-[#237227]" />
+                            </span>
+                            <span>Online</span>
                           </span>
                         )}
                       </td>
@@ -447,19 +463,19 @@ export const ProjectTable: React.FC<ProjectTableProps> = ({
         </div>
 
           {/* PAGINATION CONTROLS FOOTER */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-slate-100 bg-white px-4 py-3 text-xs text-slate-600 shrink-0" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-slate-100 bg-white px-5 py-3.5 text-xs text-slate-600 shrink-0" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
             {/* Left: Summary & Rows Selector */}
             <div className="flex flex-wrap items-center gap-3">
               <span className="font-normal text-slate-600">
                 Showing <strong className="text-slate-900 font-semibold">{startItem}</strong>–<strong className="text-slate-900 font-semibold">{endItem}</strong> of <strong className="text-slate-900 font-semibold">{sortedAndFilteredSites.length}</strong>
               </span>
 
-              <div className="flex items-center gap-1.5 border-l border-slate-200 pl-3">
+              <div className="flex items-center gap-2 border-l border-slate-200 pl-3">
                 <span className="text-slate-500 text-xs font-normal">Rows:</span>
                 <select
                   value={rowsPerPage}
                   onChange={(e) => setRowsPerPage(Number(e.target.value))}
-                  className="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-xs font-semibold text-slate-800 hover:border-slate-300 focus:border-slate-400 focus:outline-none cursor-pointer"
+                  className="rounded-full border border-slate-200/90 bg-slate-50/50 px-3 py-0.5 text-xs font-medium text-slate-800 hover:border-slate-300 focus:border-[#237227] focus:outline-none cursor-pointer transition-all"
                   style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}
                 >
                   <option value={8}>8</option>
@@ -476,7 +492,7 @@ export const ProjectTable: React.FC<ProjectTableProps> = ({
               <button
                 onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
                 disabled={currentPage === 1}
-                className="h-8 px-2.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer flex items-center gap-1 text-xs font-semibold"
+                className="h-8 px-3.5 rounded-full border border-slate-200/90 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer flex items-center gap-1 text-xs font-medium"
                 title="Previous Page"
               >
                 <ChevronLeft className="h-3.5 w-3.5" />
@@ -490,17 +506,17 @@ export const ProjectTable: React.FC<ProjectTableProps> = ({
                     <button
                       key={idx}
                       onClick={() => setCurrentPage(pageNum)}
-                      className={`min-w-[32px] h-8 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                      className={`w-8 h-8 flex items-center justify-center rounded-full text-xs font-medium transition-colors cursor-pointer ${
                         currentPage === pageNum
-                          ? 'bg-[#237227] text-white shadow-2xs'
-                          : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                          ? 'bg-[#237227] text-white shadow-xs'
+                          : 'border border-slate-200/90 bg-white text-slate-700 hover:bg-slate-50'
                       }`}
                       style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}
                     >
                       {pageNum}
                     </button>
                   ) : (
-                    <span key={idx} className="px-1 text-xs text-slate-400 font-semibold">
+                    <span key={idx} className="px-1 text-xs text-slate-400 font-normal">
                       ...
                     </span>
                   )
@@ -510,7 +526,7 @@ export const ProjectTable: React.FC<ProjectTableProps> = ({
               <button
                 onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
                 disabled={currentPage === totalPages}
-                className="h-8 px-2.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer flex items-center gap-1 text-xs font-semibold"
+                className="h-8 px-3.5 rounded-full border border-slate-200/90 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer flex items-center gap-1 text-xs font-medium"
                 title="Next Page"
               >
                 <span>Next</span>

@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { ChevronLeft, ChevronRight, Search, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { Header } from '@/components/Header';
 import { TopStatsCards } from '@/components/TopStatsCards';
-import { AnalyticsCharts } from '@/components/AnalyticsCharts';
+import { AnalyticsCharts, SiteDownActivityLogsCard } from '@/components/AnalyticsCharts';
 import { ProjectTable } from '@/components/ProjectTable';
 import { MindanaoMap } from '@/components/MindanaoMap';
 import { SiteContactModal } from '@/components/SiteContactModal';
@@ -19,6 +19,7 @@ import { Toast } from '@/components/Toast';
 import { DowntimeAlertToast } from '@/components/DowntimeAlertToast';
 import { playDowntimeBeep, isAudioMuted, setAudioMuted } from '@/utils/audioAlert';
 import { LoginLandingPage } from '@/components/LoginLandingPage';
+import { LockScreenModal } from '@/components/LockScreenModal';
 import { initialSystemSettings } from '@/data/mockSettings';
 import { ActivityLog, AssignedHandler, DashboardStats, DowntimeEvent, SiteInfrastructure } from '@/types/dashboard';
 import { SystemSettings } from '@/types/settings';
@@ -146,6 +147,32 @@ export default function DashboardClient({
   const [inspectorSite, setInspectorSite] = useState<SiteInfrastructure | null>(null);
   const [siteSelectTrigger, setSiteSelectTrigger] = useState<number>(0);
   const [mapResetZoomTrigger, setMapResetZoomTrigger] = useState<number>(0);
+
+  // Session Inactivity Auto-Lock States
+  const [isSessionLocked, setIsSessionLocked] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('monitoring_session_locked') === 'true';
+    }
+    return false;
+  });
+  const lastActivityRef = React.useRef<number>(Date.now());
+
+  // Handle Unlocking Session
+  const handleUnlockSession = () => {
+    setIsSessionLocked(false);
+    lastActivityRef.current = Date.now();
+    try {
+      localStorage.removeItem('monitoring_session_locked');
+    } catch {}
+  };
+
+  // Handle Manual Lock Screen
+  const handleManualLock = () => {
+    setIsSessionLocked(true);
+    try {
+      localStorage.setItem('monitoring_session_locked', 'true');
+    } catch {}
+  };
 
   // New Downtime Outage Siren & Alert States
   const [alertingSite, setAlertingSite] = useState<SiteInfrastructure | null>(null);
@@ -285,7 +312,7 @@ export default function DashboardClient({
     const alertLog: ActivityLog = {
       id: `ACT-${Date.now().toString().slice(-5)}`,
       type: 'outage',
-      title: '🚨 Critical Downtime Siren Alert',
+      title: 'Critical Downtime Siren Alert',
       description: `Outage alarm detected for ${site.name} (${site.code}). Audio siren triggered (3s).${hasAssignedPerson ? ' Auto-dispatch activated.' : ' No responder assigned yet.'}`,
       timestamp: 'Just now',
       siteName: site.name,
@@ -295,11 +322,22 @@ export default function DashboardClient({
       severity: 'critical',
     };
 
+    const siteDownLog: ActivityLog = {
+      id: `ACT-DOWN-${Date.now().toString().slice(-5)}`,
+      type: 'outage',
+      title: `${site.name} DOWN`,
+      description: `Site "${site.name}" (${site.code}) has ${site.offlineCount || 1}/${site.deviceCount || 1} device(s) offline. Downtime duration: Active.`,
+      timestamp: 'Just now',
+      siteName: site.name,
+      siteCode: site.code,
+      severity: 'critical',
+    };
+
     if (hasAssignedPerson) {
       const autoDispatchLog: ActivityLog = {
         id: `ACT-${(Date.now() + 1).toString().slice(-5)}`,
         type: 'telegram',
-        title: '⚡ Auto-Dispatched & Assigned Responder',
+        title: 'Auto-Dispatched & Assigned Responder',
         description: `Automatically assigned & dispatched incident alert via Telegram to ${handlerToAssign.name} (@${handlerToAssign.telegram.replace(/^@/, '')}) for ${site.name}.`,
         timestamp: 'Just now',
         siteName: site.name,
@@ -308,11 +346,41 @@ export default function DashboardClient({
         telegramUsername: handlerToAssign.telegram,
         severity: 'critical',
       };
-      setActivityLogs((prev) => [autoDispatchLog, alertLog, ...prev]);
-      setToastMessage(`⚡ Auto-Dispatched & Assigned: ${handlerToAssign.name} (@${handlerToAssign.telegram.replace(/^@/, '')}) to ${site.name}!`);
+      setActivityLogs((prev) => [siteDownLog, autoDispatchLog, alertLog, ...prev]);
+      setToastMessage(`Auto-Dispatched & Assigned: ${handlerToAssign.name} (@${handlerToAssign.telegram.replace(/^@/, '')}) to ${site.name}!`);
+
+      fetch('/api/activity-logs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(siteDownLog),
+      }).catch(() => {});
+
+      fetch('/api/activity-logs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(autoDispatchLog),
+      }).catch(() => {});
+
+      fetch('/api/activity-logs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(alertLog),
+      }).catch(() => {});
     } else {
-      setActivityLogs((prev) => [alertLog, ...prev]);
-      setToastMessage(`🚨 Outage Alert: ${site.name} is down. No designated responder assigned yet.`);
+      setActivityLogs((prev) => [siteDownLog, alertLog, ...prev]);
+      setToastMessage(`Outage Alert: ${site.name} is down. No designated responder assigned yet.`);
+
+      fetch('/api/activity-logs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(siteDownLog),
+      }).catch(() => {});
+
+      fetch('/api/activity-logs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(alertLog),
+      }).catch(() => {});
     }
   }, []);
 
@@ -529,13 +597,48 @@ export default function DashboardClient({
     return () => clearInterval(timer);
   }, [isAuthenticated, systemSettings.monitoring?.autoRefreshDashboard, applyUpdatedSites]);
 
+  // Session Inactivity Auto-Lock Watcher
+  useEffect(() => {
+    if (!isAuthenticated || isSessionLocked) return;
+
+    const timeoutMinutes = systemSettings.account?.sessionTimeoutMinutes ?? 30;
+    if (timeoutMinutes <= 0) return; // 0 = Never (Continuous session)
+
+    const handleUserActivity = () => {
+      const now = Date.now();
+      // Throttle timestamp updates to once every 2 seconds for high performance
+      if (now - lastActivityRef.current > 2000) {
+        lastActivityRef.current = now;
+      }
+    };
+
+    const activityEvents = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'click'];
+    activityEvents.forEach((evt) => window.addEventListener(evt, handleUserActivity, { passive: true }));
+
+    const checkInterval = setInterval(() => {
+      const idleMs = Date.now() - lastActivityRef.current;
+      const limitMs = timeoutMinutes * 60 * 1000;
+      if (idleMs >= limitMs) {
+        setIsSessionLocked(true);
+        try {
+          localStorage.setItem('monitoring_session_locked', 'true');
+        } catch {}
+      }
+    }, 3000);
+
+    return () => {
+      activityEvents.forEach((evt) => window.removeEventListener(evt, handleUserActivity));
+      clearInterval(checkInterval);
+    };
+  }, [isAuthenticated, isSessionLocked, systemSettings.account?.sessionTimeoutMinutes]);
+
   // Handle saving system settings
   const handleSaveSettings = (updated: SystemSettings) => {
     const isAccountUpdated = 
       updated.account.fullName !== systemSettings.account.fullName ||
       updated.account.email !== systemSettings.account.email ||
       updated.account.password !== systemSettings.account.password ||
-      updated.account.twoFactorEnabled !== systemSettings.account.twoFactorEnabled;
+      updated.account.sessionTimeoutMinutes !== systemSettings.account.sessionTimeoutMinutes;
 
     const isLangOrTzUpdated =
       updated.general.language !== systemSettings.general.language ||
@@ -909,8 +1012,10 @@ export default function DashboardClient({
       isTestOutageRef.current = true;
       setIsTestOutage(true);
 
-      const targetIndex = 0;
-      const targetSite = sites[targetIndex];
+      const selectedSite = selectedSiteId ? sites.find((s) => s.id === selectedSiteId) : null;
+      const targetSite = selectedSite || sites[0];
+      const targetIndex = sites.findIndex((s) => s.id === targetSite.id);
+
       const testDownedSite: SiteInfrastructure = {
         ...targetSite,
         status: 'Downtime',
@@ -923,7 +1028,7 @@ export default function DashboardClient({
         downtimeDuration: 'Just now',
       };
 
-      const updatedSites = sites.map((s, idx) => (idx === targetIndex ? testDownedSite : s));
+      const updatedSites = sites.map((s, idx) => (idx === (targetIndex >= 0 ? targetIndex : 0) ? testDownedSite : s));
       setSites(updatedSites);
 
       // Show only one on the table on status "All Offline"
@@ -974,6 +1079,12 @@ export default function DashboardClient({
   // Handle Login with Dynamic User Context & Persistent Session
   const handleLogin = (user?: any) => {
     setIsAuthenticated(true);
+    setIsSessionLocked(false);
+    lastActivityRef.current = Date.now();
+    try {
+      localStorage.removeItem('monitoring_session_locked');
+    } catch {}
+
     if (user) {
       setCurrentUser(user);
       try {
@@ -1005,13 +1116,16 @@ export default function DashboardClient({
   // Handle Logout (Redirects to Login Landing Page & Clears Persistent Session)
   const handleLogout = () => {
     setIsAuthenticated(false);
+    setIsSessionLocked(false);
     setCurrentUser(null);
     try {
       if (typeof window !== 'undefined') {
         localStorage.removeItem('monitoring_auth_session');
         localStorage.removeItem('monitoring_auth_user');
+        localStorage.removeItem('monitoring_session_locked');
         document.cookie = 'monitoring_auth_session=; path=/; max-age=0; SameSite=Lax';
         document.cookie = 'monitoring_auth_user=; path=/; max-age=0; SameSite=Lax';
+        document.cookie = 'monitoring_session_locked=; path=/; max-age=0; SameSite=Lax';
       }
       fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
     } catch (err) {
@@ -1044,6 +1158,7 @@ export default function DashboardClient({
           onOpenActivityLogs={() => setIsActivityLogsOpen(true)}
           onOpenSettings={handleToggleTvMode}
           onLogout={handleLogout}
+          onLock={handleManualLock}
           activityCount={activityLogs.length}
           language={systemSettings.general.language || 'English'}
           currentUser={currentUser}
@@ -1085,26 +1200,40 @@ export default function DashboardClient({
         />
 
         {/* Main Content Area */}
-        <main className="flex-1 min-h-0 w-full px-3 sm:px-5 lg:px-6 py-3 sm:py-4 overflow-y-auto">
+        <main className={`flex-1 min-h-0 w-full px-3 sm:px-5 lg:px-6 py-3 sm:py-4 ${
+          activeSection === 'activity' || activeSection === 'monitoring'
+            ? 'overflow-hidden flex flex-col h-full' 
+            : 'overflow-y-auto'
+        }`}>
           {activeSection === 'dashboard' && (
             <div className="flex flex-col gap-4 sm:gap-5 pb-4" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
               {/* SECTION 1: TOP EXECUTIVE STATS OVERVIEW CARDS */}
               <section aria-label="Top Stats Overview" className="shrink-0">
                 <TopStatsCards 
                   stats={stats} 
-                  offlineSitesCount={sites.filter((s) => s.status === 'Downtime').length} 
+                  offlineSitesCount={sites.filter((s) => s.status === 'Downtime' || (s.offlineCount === s.deviceCount && s.deviceCount > 0)).length} 
                   activeFilter={tableStatusFilter}
                   onSelectFilter={setTableStatusFilter}
                 />
               </section>
 
-              {/* SECTION 2: ANALYTICS & SITE DOWN ACTIVITY LOGS */}
-              <section aria-label="Analytics & Activity Logs" className="shrink-0">
-                <AnalyticsCharts sites={sites} activityLogs={activityLogs} />
+              <section id="site-down-activity-logs" aria-label="Analytics & Activity Logs">
+                <AnalyticsCharts 
+                  sites={sites} 
+                  activityLogs={activityLogs} 
+                  onClearLogs={async () => {
+                    setActivityLogs([]);
+                    try {
+                      await fetch('/api/activity-logs', { method: 'DELETE' });
+                    } catch (e) {
+                      console.error('Failed clearing logs in MySQL:', e);
+                    }
+                  }}
+                />
               </section>
 
               {/* SECTION 3: MASTER PROJECTS TABLE (Full Width Table Card) */}
-              <section aria-label="Master Projects Table" className="min-h-[420px] flex flex-col">
+              <section id="master-projects-table" aria-label="Master Projects Table" className="min-h-[420px] flex flex-col">
                 <ProjectTable
                   sites={sites}
                   onSelectSite={handleSelectSite}
@@ -1204,11 +1333,12 @@ export default function DashboardClient({
                           <h3 className="text-sm font-bold text-slate-900 tracking-tight">Live Sites Monitor</h3>
                           <p className="text-xs font-normal text-slate-500">Click a site to inspect full telemetry & map</p>
                         </div>
+
                         {handleToggleTestOutage && (
                           <button
                             type="button"
                             onClick={handleToggleTestOutage}
-                            className={`px-2.5 py-1 rounded-xl border text-xs font-semibold transition-all cursor-pointer shadow-2xs ${
+                            className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer shadow-2xs shrink-0 ${
                               isTestOutage
                                 ? 'border-rose-300 bg-rose-50 text-rose-700 animate-pulse'
                                 : 'border-slate-200 bg-white text-slate-800 hover:bg-slate-50'
@@ -1219,7 +1349,6 @@ export default function DashboardClient({
                         )}
                       </div>
 
-                      {/* Search, Status Dropdown & Provinces Dropdown Toolbar (matching media_1789452932923.png) */}
                       {(() => {
                         const allCount = sites.length;
                         const onlineCount = sites.filter((s) => (s.offlineCount || 0) === 0).length;
@@ -1639,6 +1768,19 @@ export default function DashboardClient({
 
       {/* Global Interactive Toast */}
       <Toast message={toastMessage} onClose={handleCloseToast} durationMs={3000} />
+
+      {/* NOC Command Center Session Inactivity Auto-Lock Modal */}
+      {isSessionLocked && (
+        <LockScreenModal
+          operatorName={currentUser?.fullName || systemSettings.account?.fullName || 'Engr. Engel Montero'}
+          operatorEmail={currentUser?.email || systemSettings.account?.email || 'emontero@dict.gov.ph'}
+          operatorUsername={currentUser?.username || systemSettings.account?.telegramUsername || 'emontero'}
+          operatorRole={currentUser?.role || systemSettings.account?.role || 'Super Administrator / Security Officer'}
+          timeoutMinutes={systemSettings.account?.sessionTimeoutMinutes ?? 30}
+          onUnlock={handleUnlockSession}
+          onLogout={handleLogout}
+        />
+      )}
     </div>
   );
 }

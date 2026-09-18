@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getDbPool } from '@/lib/db';
 import { SiteDevice } from '@/types/dashboard';
 
@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
         params.push(siteName);
       }
 
-      query += ` ORDER BY d.device_type = 'Gateway' DESC, d.id ASC`;
+      query += ` ORDER BY d.status = 'Offline' DESC, d.device_type = 'Gateway' DESC, d.id ASC`;
 
       const [rows]: any = await pool.query(query, params).catch(() => [[]]);
 

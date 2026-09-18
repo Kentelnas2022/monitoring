@@ -15,6 +15,7 @@
     "lucide-react": "^1.41.0",
     "mysql2": "^3.24.3",
     "next": "16.3.4",
+    "nodemailer": "^10.0.10",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },
@@ -23,6 +24,7 @@
     "@types/bcryptjs": "^2.4.6",
     "@types/google.maps": "^3.66.2",
     "@types/node": "^20",
+    "@types/nodemailer": "^8.0.2",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
